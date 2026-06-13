@@ -7,11 +7,15 @@ from app.models.models import Admin
 from jose import jwt
 from datetime import datetime, timedelta
 import bcrypt
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-SECRET_KEY = "nps-secret-key-2024"
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-do-not-use-in-prod")
 ALGORITHM = "HS256"
 
 def create_token(email: str):
