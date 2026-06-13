@@ -12,7 +12,7 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     houses = db.query(House).order_by(House.total_points.desc()).all()
     total_students = db.query(Student).count()
     total_events = db.query(Event).count()

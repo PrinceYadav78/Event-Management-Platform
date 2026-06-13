@@ -23,7 +23,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @router.get("/certificates", response_class=HTMLResponse)
 async def certificates_page(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     cert_templates = db.query(CertificateTemplate).all()
     custom_templates = db.query(CustomTemplate).all()
     events = db.query(Event).filter(Event.is_completed == True).all()
@@ -36,10 +36,10 @@ async def certificates_page(request: Request, db: Session = Depends(get_db)):
 @router.get("/certificates/template/edit/{template_id}", response_class=HTMLResponse)
 async def edit_template_page(template_id: str, request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
     if not tmpl:
-        return RedirectResponse(url="/certificates")
+        return RedirectResponse(url="/certificates", status_code=303)
     return templates.TemplateResponse(request, "admin/certificate_editor.html", {
         "tmpl": tmpl,
         "active": "certificates"
@@ -52,7 +52,7 @@ async def save_template_settings(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
     tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
     if tmpl:
@@ -77,7 +77,7 @@ async def save_template_settings(
         tmpl.date_font_size = int(form.get("date_font_size", 14))
         tmpl.date_color = form.get("date_color", "#6b7280")
         db.commit()
-    return RedirectResponse(url="/certificates?msg=settings_saved", status_code=302)
+    return RedirectResponse(url="/certificates?msg=settings_saved", status_code=303)
 
 @router.post("/certificates/template/save")
 async def save_builtin_template(
@@ -90,7 +90,7 @@ async def save_builtin_template(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_default:
         for t in db.query(CertificateTemplate).all():
             t.is_default = False
@@ -103,7 +103,7 @@ async def save_builtin_template(
     )
     db.add(template)
     db.commit()
-    return RedirectResponse(url="/certificates?msg=saved", status_code=302)
+    return RedirectResponse(url="/certificates?msg=saved", status_code=303)
 
 @router.post("/certificates/template/upload")
 async def upload_custom_template(
@@ -114,10 +114,10 @@ async def upload_custom_template(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     ext = os.path.splitext(template_file.filename)[1].lower()
     if ext not in [".docx", ".jpeg", ".jpg", ".png"]:
-        return RedirectResponse(url="/certificates?msg=invalid_file", status_code=302)
+        return RedirectResponse(url="/certificates?msg=invalid_file", status_code=303)
     file_type = "docx" if ext == ".docx" else "image"
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
@@ -134,7 +134,7 @@ async def upload_custom_template(
     )
     db.add(custom)
     db.commit()
-    return RedirectResponse(url=f"/certificates/template/edit/{custom.id}", status_code=302)
+    return RedirectResponse(url=f"/certificates/template/edit/{custom.id}", status_code=303)
 
 @router.post("/certificates/template/delete/{template_id}")
 async def delete_custom_template(
@@ -143,7 +143,7 @@ async def delete_custom_template(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
     if tmpl:
         filepath = os.path.join(UPLOAD_DIR, tmpl.filename)
@@ -151,7 +151,7 @@ async def delete_custom_template(
             os.remove(filepath)
         db.delete(tmpl)
         db.commit()
-    return RedirectResponse(url="/certificates?msg=deleted", status_code=302)
+    return RedirectResponse(url="/certificates?msg=deleted", status_code=303)
 
 @router.post("/certificates/template/set_default/{template_id}")
 async def set_default_custom_template(
@@ -160,14 +160,14 @@ async def set_default_custom_template(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     for t in db.query(CustomTemplate).all():
         t.is_default = False
     tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
     if tmpl:
         tmpl.is_default = True
     db.commit()
-    return RedirectResponse(url="/certificates?msg=default_set", status_code=302)
+    return RedirectResponse(url="/certificates?msg=default_set", status_code=303)
 
 @router.get("/certificates/generate/{event_id}")
 async def generate_certificates(
@@ -176,14 +176,14 @@ async def generate_certificates(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
     winners = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
         EventParticipant.position != None
     ).order_by(EventParticipant.position).all()
     if not winners:
-        return RedirectResponse(url="/certificates?msg=no_winners", status_code=302)
+        return RedirectResponse(url="/certificates?msg=no_winners", status_code=303)
     custom_template = db.query(CustomTemplate).filter(
         CustomTemplate.is_default == True
     ).first()

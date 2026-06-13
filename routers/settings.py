@@ -20,7 +20,7 @@ def is_term_locked(db: Session) -> bool:
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     classes = db.query(SchoolClass).order_by(SchoolClass.class_name).all()
     term = db.query(TermSettings).first()
     return templates.TemplateResponse(request, "admin/settings.html", {
@@ -36,7 +36,7 @@ async def add_class(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     existing = db.query(SchoolClass).filter(
         SchoolClass.class_name == class_name
     ).first()
@@ -48,7 +48,7 @@ async def add_class(
         )
         db.add(new_class)
         db.commit()
-    return RedirectResponse(url="/settings", status_code=302)
+    return RedirectResponse(url="/settings", status_code=303)
 
 @router.post("/settings/classes/delete/{class_id}")
 async def delete_class(
@@ -57,36 +57,36 @@ async def delete_class(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     school_class = db.query(SchoolClass).filter(
         SchoolClass.id == class_id
     ).first()
     if school_class:
         db.delete(school_class)
         db.commit()
-    return RedirectResponse(url="/settings", status_code=302)
+    return RedirectResponse(url="/settings", status_code=303)
 
 @router.post("/settings/term/lock")
 async def lock_term(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     term = db.query(TermSettings).first()
     if term:
         term.is_locked = True
         term.locked_at = datetime.utcnow()
         db.commit()
-    return RedirectResponse(url="/settings?msg=locked", status_code=302)
+    return RedirectResponse(url="/settings?msg=locked", status_code=303)
 
 @router.post("/settings/term/unlock")
 async def unlock_term(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     term = db.query(TermSettings).first()
     if term:
         term.is_locked = False
         term.locked_at = None
         db.commit()
-    return RedirectResponse(url="/settings?msg=unlocked", status_code=302)
+    return RedirectResponse(url="/settings?msg=unlocked", status_code=303)
 
 @router.post("/settings/term/rename")
 async def rename_term(
@@ -95,17 +95,17 @@ async def rename_term(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     term = db.query(TermSettings).first()
     if term:
         term.term_name = term_name
         db.commit()
-    return RedirectResponse(url="/settings", status_code=302)
+    return RedirectResponse(url="/settings", status_code=303)
 
 @router.get("/settings/students/template")
 async def download_template(request: Request):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["name", "roll_number", "class_name", "house_name"])
@@ -121,13 +121,13 @@ async def download_template(request: Request):
 @router.post("/settings/students/import")
 async def import_students(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_term_locked(db):
-        return RedirectResponse(url="/settings?msg=locked_error", status_code=302)
+        return RedirectResponse(url="/settings?msg=locked_error", status_code=303)
     form = await request.form()
     file = form.get("csv_file")
     if not file:
-        return RedirectResponse(url="/settings?msg=no_file", status_code=302)
+        return RedirectResponse(url="/settings?msg=no_file", status_code=303)
     contents = await file.read()
     text = contents.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
@@ -167,4 +167,4 @@ async def import_students(request: Request, db: Session = Depends(get_db)):
             skipped += 1
     db.commit()
     msg = f"import_done_{added}_{skipped}"
-    return RedirectResponse(url=f"/settings?msg={msg}", status_code=302)
+    return RedirectResponse(url=f"/settings?msg={msg}", status_code=303)

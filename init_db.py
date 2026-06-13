@@ -6,9 +6,16 @@ import bcrypt
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
+from sqlalchemy import text
+
 def init_db():
     db = SessionLocal()
     try:
+        try:
+            db.execute(text("ALTER TABLE events ADD COLUMN status VARCHAR(20) DEFAULT 'upcoming'"))
+            db.commit()
+        except Exception:
+            db.rollback()
         if db.query(House).count() == 0:
             houses = [
                 House(name="Nicon",    color="#2563eb", total_points=0, primary_points=0, middle_points=0, senior_points=0),

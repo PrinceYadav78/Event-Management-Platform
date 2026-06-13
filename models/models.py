@@ -76,6 +76,7 @@ class Event(Base):
     event_date = Column(Date, nullable=False)
     event_type = Column(String(20), default="individual")
     grade_group = Column(String(20), nullable=False)
+    status = Column(String(20), default="upcoming")
     is_completed = Column(Boolean, default=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

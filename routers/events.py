@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     events = db.query(Event).order_by(Event.event_date.desc()).all()
     return templates.TemplateResponse(request, "admin/events.html", {
         "events": events
@@ -31,13 +31,14 @@ async def add_event(
     event_date: str = Form(...),
     event_type: str = Form(...),
     grade_group: str = Form(...),
+    status: str = Form("upcoming"),
     description: str = Form(""),
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     from datetime import date
     event = Event(
         name=name,
@@ -45,18 +46,20 @@ async def add_event(
         event_date=date.fromisoformat(event_date),
         event_type=event_type,
         grade_group=grade_group,
+        status=status,
+        is_completed=(status == "completed"),
         description=description
     )
     db.add(event)
     db.commit()
-    return RedirectResponse(url="/events", status_code=302)
+    return RedirectResponse(url="/events", status_code=303)
 
 @router.get("/events/{event_id}", response_class=HTMLResponse)
 async def event_detail(event_id: str, request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
     participants = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id
@@ -80,7 +83,7 @@ async def add_participant(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     existing = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
         EventParticipant.student_id == student_id
@@ -92,7 +95,7 @@ async def add_participant(
         )
         db.add(participant)
         db.commit()
-    return RedirectResponse(url=f"/events/{event_id}", status_code=302)
+    return RedirectResponse(url=f"/events/{event_id}", status_code=303)
 
 @router.post("/events/{event_id}/record_results")
 async def record_results(
@@ -101,9 +104,9 @@ async def record_results(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     form = await request.form()
     event = db.query(Event).filter(Event.id == event_id).first()
     participants = db.query(EventParticipant).filter(
@@ -136,7 +139,7 @@ async def record_results(
 
     event.is_completed = True
     db.commit()
-    return RedirectResponse(url=f"/events/{event_id}", status_code=302)
+    return RedirectResponse(url=f"/events/{event_id}", status_code=303)
 
 @router.post("/events/delete/{event_id}")
 async def delete_event(
@@ -145,9 +148,9 @@ async def delete_event(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
     if event:
         for p in event.participants:
@@ -163,7 +166,7 @@ async def delete_event(
                         house.senior_points -= p.points_awarded
         db.delete(event)
         db.commit()
-    return RedirectResponse(url="/events", status_code=302)
+    return RedirectResponse(url="/events", status_code=303)
 @router.post("/events/edit/{event_id}")
 async def edit_event(
     event_id: str,
@@ -173,13 +176,14 @@ async def edit_event(
     event_date: str = Form(...),
     event_type: str = Form(...),
     grade_group: str = Form(...),
+    status: str = Form("upcoming"),
     description: str = Form(""),
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     from datetime import date
     event = db.query(Event).filter(Event.id == event_id).first()
     if event:
@@ -188,9 +192,11 @@ async def edit_event(
         event.event_date = date.fromisoformat(event_date)
         event.event_type = event_type
         event.grade_group = grade_group
+        event.status = status
+        event.is_completed = (status == "completed")
         event.description = description
         db.commit()
-    return RedirectResponse(url="/events?msg=edited", status_code=302)
+    return RedirectResponse(url="/events?msg=edited", status_code=303)
 @router.post("/events/{event_id}/verify_admin")
 async def verify_admin(
     event_id: str,
@@ -199,15 +205,15 @@ async def verify_admin(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     email = verify_token(request)
     admin = db.query(Admin).filter(Admin.email == email).first()
     if not admin:
-        return RedirectResponse(url=f"/events/{event_id}?unlock_error=1", status_code=302)
+        return RedirectResponse(url=f"/events/{event_id}?unlock_error=1", status_code=303)
     import bcrypt
     if not bcrypt.checkpw(password.encode("utf-8"), admin.password_hash.encode("utf-8")):
-        return RedirectResponse(url=f"/events/{event_id}?unlock_error=1", status_code=302)
-    return RedirectResponse(url=f"/events/{event_id}?edit_results=1", status_code=302)
+        return RedirectResponse(url=f"/events/{event_id}?unlock_error=1", status_code=303)
+    return RedirectResponse(url=f"/events/{event_id}?edit_results=1", status_code=303)
 
 @router.post("/events/{event_id}/edit_results")
 async def edit_results(
@@ -216,9 +222,9 @@ async def edit_results(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url=f"/events/{event_id}?msg=locked", status_code=302)
+        return RedirectResponse(url=f"/events/{event_id}?msg=locked", status_code=303)
     form = await request.form()
     event = db.query(Event).filter(Event.id == event_id).first()
     participants = db.query(EventParticipant).filter(
@@ -248,16 +254,16 @@ async def edit_results(
             participant.position = new_position if new_position else None
             participant.points_awarded = new_pts
     db.commit()
-    return RedirectResponse(url=f"/events/{event_id}?msg=results_updated", status_code=302)
+    return RedirectResponse(url=f"/events/{event_id}?msg=results_updated", status_code=303)
 @router.post("/events/bulk/form")
 async def bulk_add_events_form(
     request: Request,
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     form = await request.form()
     added = 0
     from datetime import date
@@ -280,7 +286,7 @@ async def bulk_add_events_form(
         except Exception:
             continue
     db.commit()
-    return RedirectResponse(url=f"/events?msg=bulk_added_{added}", status_code=302)
+    return RedirectResponse(url=f"/events?msg=bulk_added_{added}", status_code=303)
 
 @router.post("/events/bulk/csv")
 async def bulk_add_events_csv(
@@ -288,14 +294,14 @@ async def bulk_add_events_csv(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=302)
+        return RedirectResponse(url="/events?msg=locked", status_code=303)
     import csv, io
     form = await request.form()
     file = form.get("events_csv")
     if not file:
-        return RedirectResponse(url="/events?msg=no_file", status_code=302)
+        return RedirectResponse(url="/events?msg=no_file", status_code=303)
     contents = await file.read()
     text = contents.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
@@ -322,12 +328,12 @@ async def bulk_add_events_csv(
         except Exception:
             skipped += 1
     db.commit()
-    return RedirectResponse(url=f"/events?msg=bulk_added_{added}", status_code=302)
+    return RedirectResponse(url=f"/events?msg=bulk_added_{added}", status_code=303)
 
 @router.get("/events/bulk/template")
 async def download_events_template(request: Request):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     import csv, io
     output = io.StringIO()
     writer = csv.writer(output)

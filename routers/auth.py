@@ -40,7 +40,7 @@ async def login_page(request: Request):
     referer = request.headers.get("referer")
     host_url = str(request.base_url)
     if not referer or not referer.startswith(host_url):
-        return RedirectResponse(url="/", status_code=302)
+        return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "admin/login.html", {})
 @router.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
@@ -48,12 +48,12 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
     if not admin or not verify_password(password, admin.password_hash):
         return templates.TemplateResponse(request, "admin/login.html", {
             "error": "Invalid email or password"})
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = RedirectResponse(url="/dashboard", status_code=303)
     response.set_cookie("access_token", create_token(email), httponly=True)
     return response
 
 @router.get("/logout")
 async def logout():
-    response = RedirectResponse(url="/login", status_code=302)
+    response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("access_token")
     return response

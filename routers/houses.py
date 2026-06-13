@@ -12,7 +12,7 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/houses", response_class=HTMLResponse)
 async def houses_page(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     houses = db.query(House).all()
     points_config = db.query(PointsConfig).order_by(PointsConfig.position).all()
     return templates.TemplateResponse(request, "admin/houses.html", {
@@ -26,7 +26,7 @@ async def update_points(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
     configs = db.query(PointsConfig).all()
     for config in configs:
@@ -38,12 +38,12 @@ async def update_points(
         for config in configs:
             config.is_default = True
     db.commit()
-    return RedirectResponse(url="/houses", status_code=302)
+    return RedirectResponse(url="/houses", status_code=303)
 
 @router.post("/houses/reset")
 async def reset_points(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     houses = db.query(House).all()
     for house in houses:
         house.total_points = 0
@@ -51,4 +51,4 @@ async def reset_points(request: Request, db: Session = Depends(get_db)):
         house.middle_points = 0
         house.senior_points = 0
     db.commit()
-    return RedirectResponse(url="/houses", status_code=302)
+    return RedirectResponse(url="/houses", status_code=303)

@@ -18,9 +18,9 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/students", response_class=HTMLResponse)
 async def students_page(request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/students?msg=locked", status_code=302)
+        return RedirectResponse(url="/students?msg=locked", status_code=303)
     students = db.query(Student).join(House).all()
     houses = db.query(House).all()
     classes = db.query(SchoolClass).order_by(SchoolClass.class_name).all()
@@ -41,9 +41,9 @@ async def add_student(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/students?msg=locked", status_code=302)
+        return RedirectResponse(url="/students?msg=locked", status_code=303)
     grade_group = get_grade_group(class_name)
     student = Student(
         name=name,
@@ -54,7 +54,7 @@ async def add_student(
     )
     db.add(student)
     db.commit()
-    return RedirectResponse(url="/students", status_code=302)
+    return RedirectResponse(url="/students", status_code=303)
 
 @router.post("/students/delete/{student_id}")
 async def delete_student(
@@ -63,9 +63,9 @@ async def delete_student(
     db: Session = Depends(get_db)
 ):
     if not verify_token(request):
-        return RedirectResponse(url="/login")
+        return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
-        return RedirectResponse(url="/students?msg=locked", status_code=302)
+        return RedirectResponse(url="/students?msg=locked", status_code=303)
     student = db.query(Student).filter(Student.id == student_id).first()
     if student:
         for p in student.participations:
@@ -81,4 +81,30 @@ async def delete_student(
                         house.senior_points -= p.points_awarded
         db.delete(student)
         db.commit()
-    return RedirectResponse(url="/students", status_code=302)
+    return RedirectResponse(url="/students", status_code=303)
+
+@router.post("/students/edit/{student_id}")
+async def edit_student(
+    student_id: str,
+    request: Request,
+    name: str = Form(...),
+    roll_number: str = Form(...),
+    class_name: str = Form(...),
+    house_id: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not verify_token(request):
+        return RedirectResponse(url="/login", status_code=303)
+    if is_locked(db):
+        return RedirectResponse(url="/students?msg=locked", status_code=303)
+    
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if student:
+        student.name = name
+        student.roll_number = roll_number
+        student.class_name = class_name
+        student.house_id = house_id
+        student.grade_group = get_grade_group(class_name)
+        db.commit()
+    
+    return RedirectResponse(url="/students?msg=edited", status_code=303)
