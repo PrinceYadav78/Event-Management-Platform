@@ -7,3 +7,4 @@ python-jose
 bcrypt
 psycopg2-binary
 python-dotenv
+reportlab
