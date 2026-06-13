@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Houses - NPS{% endblock %}
+{% block page_title %}Houses & Points{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- House cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {% for house in houses %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                    style="background: {{ house.color }}">
+                    {{ house.name[0] }}
+                </div>
+                <div>
+                    <div class="font-semibold text-gray-800 dark:text-white">{{ house.name }}</div>
+                    <div class="text-xs text-gray-400 dark:text-gray-500">{{ house.total_points }} total pts</div>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between text-xs">
+                    <span class="text-gray-400 dark:text-gray-500">Primary</span>
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ house.primary_points }} pts</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-gray-400 dark:text-gray-500">Middle</span>
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ house.middle_points }} pts</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-gray-400 dark:text-gray-500">Senior</span>
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ house.senior_points }} pts</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Leaderboard per grade group -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {% for group in ['Primary', 'Middle', 'Senior'] %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-5">
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-white mb-4">{{ group }} leaderboard</h2>
+            {% if group == 'Primary' %}
+                {% set sorted_houses = houses|sort(attribute='primary_points', reverse=True) %}
+            {% elif group == 'Middle' %}
+                {% set sorted_houses = houses|sort(attribute='middle_points', reverse=True) %}
+            {% else %}
+                {% set sorted_houses = houses|sort(attribute='senior_points', reverse=True) %}
+            {% endif %}
+            {% for house in sorted_houses %}
+                {% if group == 'Primary' %}{% set pts = house.primary_points %}
+                {% elif group == 'Middle' %}{% set pts = house.middle_points %}
+                {% else %}{% set pts = house.senior_points %}{% endif %}
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-4">{{ loop.index }}</span>
+                    <div class="w-2 h-2 rounded-full" style="background: {{ house.color }}"></div>
+                    <span class="text-sm text-gray-700 dark:text-gray-300 flex-1">{{ house.name }}</span>
+                    <span class="text-sm font-semibold text-gray-800 dark:text-white">{{ pts }}</span>
+                </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Points configuration -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-5">
+        <h2 class="text-sm font-semibold text-gray-800 dark:text-white mb-1">Points configuration</h2>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            Set how many points each position earns. Check "Save as default" to keep these values permanently.
+        </p>
+        <form method="POST" action="/houses/points/update">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                {% for config in points_config %}
+                <div>
+                    <label class="form-label">{{ config.label }}</label>
+                    <input type="number" name="points_{{ config.position }}"
+                        value="{{ config.points }}" min="0" class="form-input">
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" name="save_default" class="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-blue-600 focus:ring-blue-500">
+                    Save as default
+                </label>
+                <button type="submit" class="btn-primary">Update points</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Reset points -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-red-100 dark:border-red-900/30 p-5">
+        <h2 class="text-sm font-semibold text-gray-800 dark:text-white mb-2">Reset all points</h2>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            Use this at the start of a new term. This will set all house points back to zero.
+        </p>
+        <form method="POST" action="/houses/reset"
+            onsubmit="return confirm('Are you sure? This will reset ALL house points to zero.')">
+            <button type="submit"
+                class="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-4 py-2 rounded-lg text-sm hover:bg-red-100 dark:hover:bg-red-900/50 transition-all">
+                Reset all points
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% block title %}Events - NPS{% endblock %}
+{% block page_title %}Events{% endblock %}
+
+{% block header_actions %}
+<button onclick="document.getElementById('addModal').classList.remove('hidden')" class="btn-primary">
+    + Add event
+</button>
+<button onclick="document.getElementById('bulkModal').classList.remove('hidden')" class="btn-secondary">
+    Bulk add
+</button>
+{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% if msg %}
+<div id="toast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
+    {% if msg == 'locked' %}bg-amber-50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800
+    {% elif msg == 'edited' %}bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800
+    {% else %}bg-green-50 dark:bg-green-900/50 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800{% endif %}">
+    {% if msg == 'locked' %}Term is locked. Unlock in Settings to make changes.
+    {% elif msg == 'edited' %}Event updated successfully.
+    {% else %}Action completed.{% endif %}
+    <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
+</div>
+{% endif %}
+
+<div class="space-y-4">
+    <!-- Toolbar -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-4">
+        <div class="flex gap-3 items-center mb-3">
+            <div class="relative flex-1">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input type="text" id="searchBox" placeholder="Search event name..."
+                    oninput="doFilter()"
+                    class="form-input !pl-9">
+            </div>
+            <select id="sortSelect" onchange="doFilter()" class="form-input !w-44">
+                <option value="date-desc">Newest first</option>
+                <option value="date-asc">Oldest first</option>
+                <option value="name">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+            </select>
+            <div class="flex border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
+                <button id="btn-card" onclick="setView('card')"
+                    class="px-3 py-2 text-xs font-medium bg-[#1a2535] dark:bg-blue-600 text-white transition-all">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                </button>
+                <button id="btn-table" onclick="setView('table')"
+                    class="px-3 py-2 text-xs font-medium bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 transition-all">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                </button>
+            </div>
+        </div>
+        <!-- Category filters -->
+        <div class="flex gap-2 flex-wrap mb-2">
+            <button class="filter-pill on" data-cat="all" onclick="setCat('all')">All categories</button>
+            <button class="filter-pill" data-cat="Sports" onclick="setCat('Sports')">🏅 Sports</button>
+            <button class="filter-pill" data-cat="Academic" onclick="setCat('Academic')">📚 Academic</button>
+            <button class="filter-pill" data-cat="Cultural" onclick="setCat('Cultural')">🎭 Cultural</button>
+            <button class="filter-pill" data-cat="Other" onclick="setCat('Other')">Other</button>
+        </div>
+        <!-- Grade + status filters -->
+        <div class="flex gap-2 flex-wrap">
+            <button class="filter-pill on" data-grade="all" onclick="setGrade('all')">All grades</button>
+            <button class="filter-pill" data-grade="Primary" onclick="setGrade('Primary')">Primary</button>
+            <button class="filter-pill" data-grade="Middle" onclick="setGrade('Middle')">Middle</button>
+            <button class="filter-pill" data-grade="Senior" onclick="setGrade('Senior')">Senior</button>
+            <div class="w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
+            <button class="filter-pill" data-status="all" onclick="setStatus('all')">All status</button>
+            <button class="filter-pill" data-status="completed" onclick="setStatus('completed')">Completed</button>
+            <button class="filter-pill" data-status="upcoming" onclick="setStatus('upcoming')">Upcoming</button>
+        </div>
+    </div>
+
+    <div id="resultsCount" class="text-xs text-gray-400 dark:text-gray-500 px-1"></div>
+
+    <!-- Card view -->
+    <div id="cardView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+    <!-- Table view -->
+    <div id="tableView" class="hidden bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th class="table-header">Event name</th>
+                    <th class="table-header">Category</th>
+                    <th class="table-header">Grade group</th>
+                    <th class="table-header">Date</th>
+                    <th class="table-header">Type</th>
+                    <th class="table-header">Status</th>
+                    <th class="table-header">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add event modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Add new event</h2>
+            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+        <form method="POST" action="/events/add" class="space-y-4">
+            <div>
+                <label class="form-label">Event name</label>
+                <input type="text" name="name" required placeholder="e.g. 100m Sprint" class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-input">
+                        <option>Sports</option>
+                        <option>Academic</option>
+                        <option>Cultural</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Type</label>
+                    <select name="event_type" class="form-input">
+                        <option value="individual">Individual</option>
+                        <option value="team">Team</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Grade group</label>
+                    <select name="grade_group" class="form-input">
+                        <option>Primary</option>
+                        <option>Middle</option>
+                        <option>Senior</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Date</label>
+                    <input type="date" name="event_date" required class="form-input">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">Description (optional)</label>
+                <textarea name="description" rows="2" class="form-input" placeholder="Brief description..."></textarea>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1">Save event</button>
+                <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')" class="btn-secondary flex-1">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit event modal -->
+<div id="editModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Edit event</h2>
+            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+        <form id="editForm" method="POST" action="" class="space-y-4">
+            <div>
+                <label class="form-label">Event name</label>
+                <input type="text" id="editName" name="name" required class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Category</label>
+                    <select id="editCat" name="category" class="form-input">
+                        <option>Sports</option>
+                        <option>Academic</option>
+                        <option>Cultural</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Type</label>
+                    <select id="editType" name="event_type" class="form-input">
+                        <option value="individual">Individual</option>
+                        <option value="team">Team</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Grade group</label>
+                    <select id="editGrade" name="grade_group" class="form-input">
+                        <option>Primary</option>
+                        <option>Middle</option>
+                        <option>Senior</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Date</label>
+                    <input type="date" id="editDate" name="event_date" required class="form-input">
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1">Save changes</button>
+                <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')" class="btn-secondary flex-1">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<script>
+var catColors = {
+    Sports:   { cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon:'🏅' },
+    Academic: { cls: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon:'📚' },
+    Cultural: { cls: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon:'🎭' },
+    Other:    { cls: 'bg-gray-50 text-gray-700 dark:bg-slate-700/50 dark:text-gray-400', icon:'📌' }
+};
+var gradeColors = {
+    Primary: { cls: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+    Middle:  { cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    Senior:  { cls: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' }
+};
+
+var allEvents = [
+    {% for event in events %}
+    {
+        id: "{{ event.id }}",
+        name: "{{ event.name }}",
+        category: "{{ event.category }}",
+        grade: "{{ event.grade_group }}",
+        date: "{{ event.event_date }}",
+        type: "{{ event.event_type }}",
+        completed: {{ 'true' if event.is_completed else 'false' }},
+        description: "{{ event.description or '' }}"
+    },
+    {% endfor %}
+];
+
+var activeCat = 'all';
+var activeGrade = 'all';
+var activeStatus = 'all';
+var currentView = 'card';
+
+function setCat(c) {
+    activeCat = c;
+    document.querySelectorAll('[data-cat]').forEach(b => b.classList.toggle('on', b.dataset.cat === c));
+    doFilter();
+}
+function setGrade(g) {
+    activeGrade = g;
+    document.querySelectorAll('[data-grade]').forEach(b => b.classList.toggle('on', b.dataset.grade === g));
+    doFilter();
+}
+function setStatus(s) {
+    activeStatus = s;
+    document.querySelectorAll('[data-status]').forEach(b => b.classList.toggle('on', b.dataset.status === s));
+    doFilter();
+}
+function setView(v) {
+    currentView = v;
+    document.getElementById('cardView').classList.toggle('hidden', v !== 'card');
+    document.getElementById('tableView').classList.toggle('hidden', v !== 'table');
+    document.getElementById('btn-card').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='card' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
+    document.getElementById('btn-table').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='table' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
+    doFilter();
+}
+function openEdit(id, name, cat, date, type, grade) {
+    document.getElementById('editForm').action = '/events/edit/' + id;
+    document.getElementById('editName').value = name;
+    document.getElementById('editCat').value = cat;
+    document.getElementById('editDate').value = date;
+    document.getElementById('editType').value = type;
+    document.getElementById('editGrade').value = grade;
+    document.getElementById('editModal').classList.remove('hidden');
+}
+function doFilter() {
+    var q = document.getElementById('searchBox').value.toLowerCase();
+    var sort = document.getElementById('sortSelect').value;
+    var filtered = allEvents.filter(e => {
+        const matchQ = !q || e.name.toLowerCase().includes(q);
+        const matchC = activeCat === 'all' || e.category === activeCat;
+        const matchG = activeGrade === 'all' || e.grade === activeGrade;
+        const matchS = activeStatus === 'all' || (activeStatus === 'completed' ? e.completed : !e.completed);
+        return matchQ && matchC && matchG && matchS;
+    });
+    filtered.sort((a, b) => {
+        if (sort === 'date-desc') return b.date.localeCompare(a.date);
+        if (sort === 'date-asc') return a.date.localeCompare(b.date);
+        if (sort === 'name') return a.name.localeCompare(b.name);
+        if (sort === 'name-desc') return b.name.localeCompare(a.name);
+        return 0;
+    });
+    document.getElementById('resultsCount').textContent =
+        `Showing ${filtered.length} event${filtered.length !== 1 ? 's' : ''}`;
+    if (currentView === 'card') {
+        document.getElementById('cardView').innerHTML = filtered.map(e => {
+            const cc = catColors[e.category] || catColors.Other;
+            const gc = gradeColors[e.grade] || gradeColors.Primary;
+            return `
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-500 cursor-default">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cc.cls}">
+                        ${cc.icon} ${e.category}
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-[11px] font-medium ${e.completed ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}">
+                        ${e.completed ? 'Completed' : 'Upcoming'}
+                    </span>
+                </div>
+                <div class="text-base font-bold text-gray-900 dark:text-white mb-1">${e.name}</div>
+                <div class="text-xs text-gray-400 dark:text-gray-500 mb-3">${e.date}</div>
+                <div class="flex gap-1.5 flex-wrap mb-3.5">
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium ${gc.cls}">${e.grade}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-50 text-slate-600 dark:bg-slate-700 dark:text-slate-300">${e.type}</span>
+                </div>
+                <div class="flex gap-1.5 pt-3 border-t border-slate-50 dark:border-slate-700/50">
+                    <a href="/events/${e.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium text-center no-underline bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50">Manage</a>
+                    <button onclick="openEdit('${e.id}','${e.name}','${e.category}','${e.date}','${e.type}','${e.grade}')"
+                        class="flex-1 py-1.5 rounded-lg text-xs font-medium text-center border-none cursor-pointer bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50">Edit</button>
+                    <button onclick="if(confirm('Delete ${e.name}?')){document.getElementById('del-${e.id}').submit()}"
+                        class="flex-1 py-1.5 rounded-lg text-xs font-medium text-center border-none cursor-pointer bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50">Delete</button>
+                    <form id="del-${e.id}" method="POST" action="/events/delete/${e.id}" class="hidden"></form>
+                </div>
+            </div>`;
+        }).join('') || '<div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-10 text-gray-400 dark:text-gray-500 text-sm">No events match your filters</div>';
+    } else {
+        document.getElementById('tableBody').innerHTML = filtered.map(e => `
+            <tr class="border-b border-gray-100 dark:border-slate-700/50 last:border-0">
+                <td class="table-cell font-medium">${e.name}</td>
+                <td class="table-cell">${e.category}</td>
+                <td class="table-cell">${e.grade}</td>
+                <td class="table-cell">${e.date}</td>
+                <td class="table-cell">${e.type}</td>
+                <td class="table-cell">
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-medium ${e.completed ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}">
+                        ${e.completed ? 'Completed' : 'Upcoming'}
+                    </span>
+                </td>
+                <td class="table-cell">
+                    <div class="flex gap-2.5">
+                        <a href="/events/${e.id}" class="text-xs text-blue-600 dark:text-blue-400 hover:underline no-underline">Manage</a>
+                        <button onclick="openEdit('${e.id}','${e.name}','${e.category}','${e.date}','${e.type}','${e.grade}')"
+                            class="text-xs text-green-700 dark:text-green-400 cursor-pointer bg-transparent border-none hover:underline">Edit</button>
+                        <button onclick="if(confirm('Delete ${e.name}?')){document.getElementById('del2-${e.id}').submit()}"
+                            class="text-xs text-red-600 dark:text-red-400 cursor-pointer bg-transparent border-none hover:underline">Delete</button>
+                        <form id="del2-${e.id}" method="POST" action="/events/delete/${e.id}" class="hidden"></form>
+                    </div>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="7" class="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">No events match your filters</td></tr>';
+    }
+}
+
+var toast = document.getElementById('toast');
+if (toast) setTimeout(() => toast.remove(), 4000);
+doFilter();
+
+function switchTab(t) {
+    document.getElementById('panel_form').style.display = t==='form' ? 'block' : 'none';
+    document.getElementById('panel_csv').style.display = t==='csv' ? 'block' : 'none';
+    var activeCls = 'flex-1 py-2 rounded-lg text-sm font-medium border-none bg-[#1a2535] dark:bg-blue-600 text-white cursor-pointer transition-all';
+    var inactiveCls = 'flex-1 py-2 rounded-lg text-sm font-medium border-none bg-transparent text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all';
+    document.getElementById('tab_form').className = t==='form' ? activeCls : inactiveCls;
+    document.getElementById('tab_csv').className = t==='csv' ? activeCls : inactiveCls;
+}
+</script>
+
+<!-- Bulk add modal -->
+<div id="bulkModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white">Bulk add events</h2>
+            <button onclick="document.getElementById('bulkModal').classList.add('hidden')"
+                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-transparent border-none cursor-pointer text-lg">✕</button>
+        </div>
+
+        <!-- Tab switch -->
+        <div class="flex gap-1 mb-4 bg-gray-50 dark:bg-slate-900/50 rounded-xl p-1">
+            <button onclick="switchTab('form')" id="tab_form"
+                class="flex-1 py-2 rounded-lg text-sm font-medium border-none bg-[#1a2535] dark:bg-blue-600 text-white cursor-pointer transition-all">
+                Fill form
+            </button>
+            <button onclick="switchTab('csv')" id="tab_csv"
+                class="flex-1 py-2 rounded-lg text-sm font-medium border-none bg-transparent text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all">
+                Upload CSV
+            </button>
+        </div>
+
+        <!-- Form tab -->
+        <div id="panel_form">
+            <form method="POST" action="/events/bulk/form">
+                <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 mb-2">
+                    <div class="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Event name</div>
+                    <div class="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Date</div>
+                    <div class="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Category</div>
+                    <div class="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Grade</div>
+                    <div class="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Type</div>
+                </div>
+                {% for i in range(10) %}
+                <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 mb-1.5">
+                    <input type="text" name="name_{{ i }}" placeholder="Event name"
+                        class="form-input !px-2.5 !py-1.5 !text-xs">
+                    <input type="date" name="date_{{ i }}"
+                        class="form-input !px-2.5 !py-1.5 !text-xs">
+                    <select name="category_{{ i }}"
+                        class="form-input !px-1.5 !py-1.5 !text-xs">
+                        <option>Sports</option>
+                        <option>Academic</option>
+                        <option>Cultural</option>
+                        <option>Other</option>
+                    </select>
+                    <select name="grade_{{ i }}"
+                        class="form-input !px-1.5 !py-1.5 !text-xs">
+                        <option>Primary</option>
+                        <option>Middle</option>
+                        <option>Senior</option>
+                    </select>
+                    <select name="type_{{ i }}"
+                        class="form-input !px-1.5 !py-1.5 !text-xs">
+                        <option value="individual">Individual</option>
+                        <option value="team">Team</option>
+                    </select>
+                </div>
+                {% endfor %}
+                <div class="flex gap-3 mt-4">
+                    <button type="submit" class="btn-primary flex-1 text-center">
+                        Add all events
+                    </button>
+                    <button type="button"
+                        onclick="document.getElementById('bulkModal').classList.add('hidden')"
+                        class="btn-secondary flex-1 text-center">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- CSV tab -->
+        <div id="panel_csv" style="display:none;">
+            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 text-xs text-blue-700 dark:text-blue-300">
+                CSV columns:
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">name</span>,
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">date</span> (YYYY-MM-DD),
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">category</span>,
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">grade_group</span>,
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">type</span>,
+                <span class="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded text-blue-800 dark:text-blue-200">description</span>
+                <br><br>
+                <a href="/events/bulk/template" class="text-blue-700 dark:text-blue-400 font-medium hover:underline">Download sample template →</a>
+            </div>
+            <form method="POST" action="/events/bulk/csv" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Select CSV file</label>
+                    <input type="file" name="events_csv" accept=".csv" required class="form-input">
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="btn-primary flex-1 text-center">
+                        Import events
+                    </button>
+                    <button type="button"
+                        onclick="document.getElementById('bulkModal').classList.add('hidden')"
+                        class="btn-secondary flex-1 text-center">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

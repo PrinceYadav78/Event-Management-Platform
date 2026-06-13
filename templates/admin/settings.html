@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Settings - NPS{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+
+{% if msg %}
+<div id="toast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
+    {% if 'locked_error' in msg %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800
+    {% elif 'locked' in msg %}bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/50 dark:text-amber-400 dark:border-amber-800
+    {% elif 'unlocked' in msg %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/50 dark:text-green-400 dark:border-green-800
+    {% else %}bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-800{% endif %}">
+    {% if msg == 'locked' %}Term locked. No edits allowed until unlocked.
+    {% elif msg == 'unlocked' %}Term unlocked. Edits are now allowed.
+    {% elif msg == 'locked_error' %}Cannot import — term is locked.
+    {% elif msg.startswith('import_done') %}
+        {% set parts = msg.split('_') %}
+        Imported {{ parts[2] }} students, skipped {{ parts[3] }}.
+    {% else %}Action completed.{% endif %}
+    <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100 cursor-pointer border-none bg-transparent">✕</button>
+</div>
+{% endif %}
+
+<div class="flex flex-col gap-5">
+
+    <!-- Term lock -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">Term lock</div>
+                <div class="text-xs text-gray-400 dark:text-gray-500">
+                    When locked, no students, events or results can be edited or deleted.
+                    {% if term and term.is_locked %}
+                    <span class="text-amber-700 dark:text-amber-500 font-medium">Currently locked{% if term.locked_at %} since {{ term.locked_at.strftime('%d %b %Y') }}{% endif %}.</span>
+                    {% else %}
+                    <span class="text-green-700 dark:text-green-500 font-medium">Currently unlocked.</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if term and term.is_locked %}
+            <form method="POST" action="/settings/term/unlock" onsubmit="return confirm('Unlock this term?')">
+                <button class="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors cursor-pointer">Unlock term</button>
+            </form>
+            {% else %}
+            <form method="POST" action="/settings/term/lock" onsubmit="return confirm('Lock this term?')">
+                <button class="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors cursor-pointer">Lock term</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Rename term -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="text-base font-semibold text-gray-900 dark:text-white mb-4">Term name</div>
+        <form method="POST" action="/settings/term/rename" class="flex flex-col sm:flex-row gap-3 items-end">
+            <div class="flex-1 w-full">
+                <label class="form-label">Current term name</label>
+                <input type="text" name="term_name" required class="form-input"
+                    value="{% if term %}{{ term.term_name }}{% else %}Term 1{% endif %}">
+            </div>
+            <button type="submit" class="btn-primary w-full sm:w-auto h-[38px]">Save</button>
+        </form>
+    </div>
+
+    <!-- CSV Import -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="flex items-center justify-between mb-1">
+            <div class="text-base font-semibold text-gray-900 dark:text-white">Import students from CSV</div>
+            <a href="/settings/students/template" class="text-xs text-blue-600 dark:text-blue-400 no-underline hover:underline">Download template</a>
+        </div>
+        <div class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            CSV must have columns:
+            <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">name</span>,
+            <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">roll_number</span>,
+            <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">class_name</span>,
+            <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">house_name</span>.
+            Duplicate roll numbers are skipped automatically.
+        </div>
+        {% if term and term.is_locked %}
+        <div class="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-4 py-3 rounded-xl text-xs border border-amber-200 dark:border-amber-800/50">
+            Term is locked. Unlock the term first to import students.
+        </div>
+        {% else %}
+        <form method="POST" action="/settings/students/import" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-3 items-end">
+            <div class="flex-1 w-full">
+                <label class="form-label">Select CSV file</label>
+                <input type="file" name="csv_file" accept=".csv" required class="form-input">
+            </div>
+            <button type="submit" class="btn-primary w-full sm:w-auto h-[38px]">Import</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Add class -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">Add a class</div>
+        <div class="text-xs text-gray-400 dark:text-gray-500 mb-4">Type the class name exactly — e.g. "I A", "VI C", "XII B". Grade group is assigned automatically.</div>
+        <form method="POST" action="/settings/classes/add" class="flex flex-col sm:flex-row gap-3 items-end">
+            <div class="flex-1 w-full">
+                <label class="form-label">Class name</label>
+                <input type="text" name="class_name" required placeholder="e.g. VII C" class="form-input">
+            </div>
+            <button type="submit" class="btn-primary w-full sm:w-auto h-[38px]">Add class</button>
+        </form>
+    </div>
+
+    <!-- Classes by grade group -->
+    {% for group in ['Primary', 'Middle', 'Senior'] %}
+    {% set group_classes = classes|selectattr('grade_group', 'equalto', group)|list %}
+    {% if group_classes %}
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="text-base font-semibold text-gray-900 dark:text-white">{{ group }} classes</div>
+            <span class="text-xs text-gray-400 dark:text-gray-500">{{ group_classes|length }} classes</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {% for c in group_classes %}
+            <div class="flex items-center justify-between px-3 py-2 border border-gray-100 dark:border-slate-700 rounded-lg bg-gray-50 dark:bg-slate-700/30 group">
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ c.class_name }}</span>
+                <form method="POST" action="/settings/classes/delete/{{ c.id }}" onsubmit="return confirm('Remove {{ c.class_name }}?')">
+                    <button class="bg-transparent border-none cursor-pointer text-gray-300 dark:text-slate-500 text-xs hover:text-red-500 dark:hover:text-red-400 transition-colors">✕</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+</div>
+
+<script>
+var toast = document.getElementById('toast');
+if (toast) setTimeout(() => toast.remove(), 4000);
+</script>
+{% endblock %}

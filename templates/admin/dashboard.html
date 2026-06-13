@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - NPS{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+<a href="/events" class="btn-primary">+ New event</a>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5">
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="text-[13px] text-gray-400 dark:text-gray-500 mb-2">Total events</div>
+            <div class="text-[32px] font-bold text-gray-900 dark:text-white leading-none">{{ total_events }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{{ completed_events }} completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-[13px] text-gray-400 dark:text-gray-500 mb-2">Students</div>
+            <div class="text-[32px] font-bold text-gray-900 dark:text-white leading-none">{{ total_students }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">across 4 houses</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-[13px] text-gray-400 dark:text-gray-500 mb-2">Certificates</div>
+            <div class="text-[32px] font-bold text-gray-900 dark:text-white leading-none">{{ total_certificates }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">generated</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-[13px] text-gray-400 dark:text-gray-500 mb-2">Leading house</div>
+            {% if houses and houses[0].total_points > 0 %}
+            <div class="text-[22px] font-bold leading-none" style="color:{{ houses[0].color }}">{{ houses[0].name }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{{ houses[0].total_points }} pts</div>
+            {% else %}
+            <div class="text-lg font-semibold text-gray-300 dark:text-slate-600">No leader yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Leaderboard + Recent events -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- House leaderboard -->
+        <div class="card">
+            <div class="flex items-center justify-between mb-5">
+                <div class="text-[15px] font-semibold text-gray-900 dark:text-white">House leaderboard</div>
+                <a href="/houses" class="text-[13px] text-blue-500 hover:text-blue-600 dark:text-blue-400 no-underline">View all</a>
+            </div>
+            {% set max_pts = houses[0].total_points if houses and houses[0].total_points > 0 else 1 %}
+            {% for house in houses %}
+            <div class="mb-4">
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 rounded-full" style="background:{{ house.color }};"></div>
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ house.name }}</span>
+                    </div>
+                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ house.total_points }}</span>
+                </div>
+                <div class="w-full h-1.5 bg-gray-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-300" style="background:{{ house.color }}; width:{{ (house.total_points / max_pts * 100)|int }}%;"></div>
+                </div>
+                <div class="flex gap-3 mt-1">
+                    <span class="text-[11px] text-gray-400 dark:text-gray-500">Primary: <b class="font-semibold text-gray-500 dark:text-gray-400">{{ house.primary_points }}</b></span>
+                    <span class="text-[11px] text-gray-400 dark:text-gray-500">Middle: <b class="font-semibold text-gray-500 dark:text-gray-400">{{ house.middle_points }}</b></span>
+                    <span class="text-[11px] text-gray-400 dark:text-gray-500">Senior: <b class="font-semibold text-gray-500 dark:text-gray-400">{{ house.senior_points }}</b></span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Recent events -->
+        <div class="card">
+            <div class="flex items-center justify-between mb-5">
+                <div class="text-[15px] font-semibold text-gray-900 dark:text-white">Recent events</div>
+                <a href="/events" class="text-[13px] text-blue-500 hover:text-blue-600 dark:text-blue-400 no-underline">+ Add event</a>
+            </div>
+            {% for event in recent_events %}
+            <div class="flex items-center justify-between py-2.5 border-b border-gray-50 dark:border-slate-700/50 last:border-0">
+                <div>
+                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ event.name }}</div>
+                    <div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ event.category }} &middot; {{ event.grade_group }} &middot; {{ event.event_date }}</div>
+                </div>
+                {% if event.is_completed %}
+                <span class="badge-green">Completed</span>
+                {% else %}
+                <span class="badge-amber">Upcoming</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">No events yet</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

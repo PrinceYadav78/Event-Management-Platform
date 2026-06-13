@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block title %}Students - NPS{% endblock %}
+{% block page_title %}Students{% endblock %}
+
+{% block header_actions %}
+<button onclick="document.getElementById('addModal').classList.remove('hidden')"
+    class="btn-primary">
+    + Add student
+</button>
+{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% set deleted_name = request.query_params.get('name') %}
+
+{% if msg %}
+<div id="toast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
+    {% if msg == 'deleted' %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800
+    {% elif msg == 'restored' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/50 dark:text-green-400 dark:border-green-800
+    {% elif msg == 'locked' %}bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/50 dark:text-amber-400 dark:border-amber-800
+    {% else %}bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-800{% endif %}">
+    {% if msg == 'deleted' %}Deleted {{ deleted_name }}. <span id="undo-countdown" class="text-xs opacity-60">(10s)</span>
+    {% elif msg == 'restored' %}Student restored successfully.
+    {% elif msg == 'locked' %}Term is locked. Unlock in Settings to make changes.
+    {% elif msg == 'edited' %}Student updated successfully.
+    {% else %}Student added successfully.{% endif %}
+    <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
+</div>
+{% endif %}
+
+<div class="space-y-4">
+    <!-- Toolbar -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-4">
+        <div class="flex gap-3 items-center mb-3">
+            <!-- Search -->
+            <div class="relative flex-1">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input type="text" id="searchBox" placeholder="Search name, roll number, class..."
+                    oninput="doFilter()"
+                    class="form-input !pl-9">
+            </div>
+            <!-- Sort -->
+            <select id="sortSelect" onchange="doFilter()" class="form-input !w-44">
+                <option value="name">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="roll">Roll number</option>
+                <option value="house">House</option>
+                <option value="class">Class</option>
+            </select>
+            <!-- View toggle -->
+            <div class="flex border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
+                <button id="btn-card" onclick="setView('card')"
+                    class="px-3 py-2 text-xs font-medium bg-[#1a2535] dark:bg-blue-600 text-white transition-all">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                </button>
+                <button id="btn-table" onclick="setView('table')"
+                    class="px-3 py-2 text-xs font-medium bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 transition-all">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                </button>
+            </div>
+        </div>
+        <!-- House filters -->
+        <div class="flex gap-2 flex-wrap mb-2">
+            <button class="filter-pill on" data-house="all" onclick="setHouse('all')">All houses</button>
+            {% for house in houses %}
+            <button class="filter-pill" data-house="{{ house.name }}" onclick="setHouse('{{ house.name }}')"
+                style="border-left:3px solid {{ house.color }};">
+                {{ house.name }}
+            </button>
+            {% endfor %}
+        </div>
+        <!-- Grade filters -->
+        <div class="flex gap-2 flex-wrap">
+            <button class="filter-pill on" data-grade="all" onclick="setGrade('all')">All grades</button>
+            <button class="filter-pill" data-grade="Primary" onclick="setGrade('Primary')">Primary</button>
+            <button class="filter-pill" data-grade="Middle" onclick="setGrade('Middle')">Middle</button>
+            <button class="filter-pill" data-grade="Senior" onclick="setGrade('Senior')">Senior</button>
+        </div>
+    </div>
+
+    <div id="resultsCount" class="text-xs text-gray-400 dark:text-gray-500 px-1"></div>
+
+    <!-- Card view -->
+    <div id="cardView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+    <!-- Table view -->
+    <div id="tableView" class="hidden bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+        <table class="w-full" id="studentsTable">
+            <thead>
+                <tr>
+                    <th class="table-header">Name</th>
+                    <th class="table-header">Roll number</th>
+                    <th class="table-header">Class</th>
+                    <th class="table-header">Grade group</th>
+                    <th class="table-header">House</th>
+                    <th class="table-header">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add student modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Add new student</h2>
+            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+        <form method="POST" action="/students/add" class="space-y-4">
+            <div>
+                <label class="form-label">Full name</label>
+                <input type="text" name="name" required placeholder="e.g. Arjun Sharma" class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Roll number</label>
+                    <input type="text" name="roll_number" required placeholder="e.g. 2024001" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">Class</label>
+                    <select name="class_name" class="form-input">
+                        {% for c in classes %}
+                        <option value="{{ c.class_name }}">{{ c.class_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="form-label">House</label>
+                <select name="house_id" class="form-input">
+                    {% for house in houses %}
+                    <option value="{{ house.id }}">{{ house.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1">Save student</button>
+                <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')" class="btn-secondary flex-1">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit student modal -->
+<div id="editModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Edit student</h2>
+            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+        <form id="editForm" method="POST" action="" class="space-y-4">
+            <div>
+                <label class="form-label">Full name</label>
+                <input type="text" id="editName" name="name" required class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Roll number</label>
+                    <input type="text" id="editRoll" name="roll_number" required class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">Class</label>
+                    <select id="editClass" name="class_name" class="form-input">
+                        {% for c in classes %}
+                        <option value="{{ c.class_name }}">{{ c.class_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="form-label">House</label>
+                <select id="editHouse" name="house_id" class="form-input">
+                    {% for house in houses %}
+                    <option value="{{ house.id }}">{{ house.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1">Save changes</button>
+                <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')" class="btn-secondary flex-1">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<script>
+var allStudents = [
+    {% for student in students %}
+    {
+        id: "{{ student.id }}",
+        name: "{{ student.name }}",
+        roll: "{{ student.roll_number }}",
+        cls: "{{ student.class_name }}",
+        grade: "{{ student.grade_group }}",
+        house: "{{ student.house.name }}",
+        houseId: "{{ student.house_id }}",
+        houseColor: "{{ student.house.color }}"
+    },
+    {% endfor %}
+];
+
+var activeHouse = 'all';
+var activeGrade = 'all';
+var currentView = 'card';
+
+function initials(name) {
+    return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+}
+
+function setView(v) {
+    currentView = v;
+    document.getElementById('cardView').classList.toggle('hidden', v !== 'card');
+    document.getElementById('tableView').classList.toggle('hidden', v !== 'table');
+    document.getElementById('btn-card').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='card' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
+    document.getElementById('btn-table').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='table' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
+    doFilter();
+}
+
+function setHouse(h) {
+    activeHouse = h;
+    document.querySelectorAll('[data-house]').forEach(b => b.classList.toggle('on', b.dataset.house === h));
+    doFilter();
+}
+
+function setGrade(g) {
+    activeGrade = g;
+    document.querySelectorAll('[data-grade]').forEach(b => b.classList.toggle('on', b.dataset.grade === g));
+    doFilter();
+}
+
+function openEdit(id, name, roll, cls, houseId) {
+    document.getElementById('editForm').action = '/students/edit/' + id;
+    document.getElementById('editName').value = name;
+    document.getElementById('editRoll').value = roll;
+    document.getElementById('editClass').value = cls;
+    document.getElementById('editHouse').value = houseId;
+    document.getElementById('editModal').classList.remove('hidden');
+}
+
+function doFilter() {
+    var q = document.getElementById('searchBox').value.toLowerCase();
+    var sort = document.getElementById('sortSelect').value;
+
+    var filtered = allStudents.filter(s => {
+        const matchQ = !q || s.name.toLowerCase().includes(q) || s.roll.includes(q) || s.cls.toLowerCase().includes(q);
+        const matchH = activeHouse === 'all' || s.house === activeHouse;
+        const matchG = activeGrade === 'all' || s.grade === activeGrade;
+        return matchQ && matchH && matchG;
+    });
+
+    filtered.sort((a, b) => {
+        if (sort === 'name') return a.name.localeCompare(b.name);
+        if (sort === 'name-desc') return b.name.localeCompare(a.name);
+        if (sort === 'roll') return a.roll.localeCompare(b.roll);
+        if (sort === 'house') return a.house.localeCompare(b.house);
+        if (sort === 'class') return a.cls.localeCompare(b.cls);
+        return 0;
+    });
+
+    document.getElementById('resultsCount').textContent =
+        `Showing ${filtered.length} student${filtered.length !== 1 ? 's' : ''}`;
+
+    if (currentView === 'card') {
+        document.getElementById('cardView').innerHTML = filtered.map(s => `
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-4 transition-all duration-150 hover:-translate-y-px hover:border-slate-300 dark:hover:border-slate-500">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style="background:${s.houseColor};">
+                        ${initials(s.name)}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-gray-900 dark:text-white">${s.name}</div>
+                        <div class="text-[11px] text-gray-400 dark:text-gray-500">#${s.roll}</div>
+                    </div>
+                </div>
+                <div class="h-px bg-gray-50 dark:bg-slate-700/50 mb-2.5"></div>
+                <div class="grid grid-cols-2 gap-1.5 mb-2.5">
+                    <div>
+                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Class</div>
+                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mt-0.5">${s.cls}</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Grade</div>
+                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mt-0.5">${s.grade}</div>
+                    </div>
+                    <div class="col-span-2 mt-1">
+                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">House</div>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium mt-0.5 bg-gray-50 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300">
+                            <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${s.houseColor};"></span>
+                            ${s.house}
+                        </span>
+                    </div>
+                </div>
+                <div class="flex gap-1.5 pt-2.5 border-t border-gray-50 dark:border-slate-700/50">
+                    <button onclick="openEdit('${s.id}','${s.name}','${s.roll}','${s.cls}','${s.houseId}')"
+                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors">Edit</button>
+                    <button onclick="if(confirm('Delete ${s.name}?')) { document.getElementById('del-${s.id}').submit(); }"
+                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors">Delete</button>
+                    <form id="del-${s.id}" method="POST" action="/students/delete/${s.id}" class="hidden"></form>
+                </div>
+            </div>
+        `).join('') || '<div class="col-span-1 md:col-span-2 lg:col-span-4 text-center py-10 text-gray-400 dark:text-gray-500 text-sm">No students match your search</div>';
+    } else {
+        document.getElementById('tableBody').innerHTML = filtered.map(s => `
+            <tr class="border-b border-gray-100 dark:border-slate-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                <td class="table-cell font-medium">${s.name}</td>
+                <td class="table-cell">${s.roll}</td>
+                <td class="table-cell">${s.cls}</td>
+                <td class="table-cell">${s.grade}</td>
+                <td class="table-cell">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 rounded-full" style="background:${s.houseColor};"></div>
+                        ${s.house}
+                    </div>
+                </td>
+                <td class="table-cell">
+                    <div class="flex gap-2.5">
+                        <button onclick="openEdit('${s.id}','${s.name}','${s.roll}','${s.cls}','${s.houseId}')"
+                            class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer bg-transparent border-none hover:underline">Edit</button>
+                        <button onclick="if(confirm('Delete ${s.name}?')) { document.getElementById('del2-${s.id}').submit(); }"
+                            class="text-xs text-red-600 dark:text-red-400 cursor-pointer bg-transparent border-none hover:underline">Delete</button>
+                        <form id="del2-${s.id}" method="POST" action="/students/delete/${s.id}" class="hidden"></form>
+                    </div>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="6" class="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">No students match your search</td></tr>';
+    }
+}
+
+// Toast countdown
+var toast = document.getElementById('toast');
+if (toast) {
+    var seconds = 10;
+    var countdown = document.getElementById('undo-countdown');
+    var timer = setInterval(() => {
+        seconds--;
+        if (countdown) countdown.textContent = `(${seconds}s)`;
+        if (seconds <= 0) { clearInterval(timer); toast.remove(); }
+    }, 1000);
+}
+
+doFilter();
+</script>
+{% endblock %}

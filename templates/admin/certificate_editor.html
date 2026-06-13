@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Edit Template - NPS{% endblock %}
+{% block page_title %}Certificate template editor{% endblock %}
+
+{% block header_actions %}
+<a href="/certificates" class="btn-secondary">← Back to certificates</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 items-start">
+
+    <!-- Preview panel -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
+        <div class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+            Live preview
+            <span class="text-[11px] text-gray-400 dark:text-gray-500 font-normal ml-2">Drag the labels to reposition</span>
+        </div>
+        <div id="previewContainer" class="relative w-full bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700">
+            {% if tmpl.file_type == 'image' %}
+            <img src="/static/templates_upload/{{ tmpl.filename }}"
+                class="w-full block" id="bgImage"
+                onload="initPreview()">
+            {% else %}
+            <div class="w-full h-[400px] flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-sm p-6 text-center">
+                Word template — text positions apply as percentages of page
+            </div>
+            {% endif %}
+
+            <!-- Draggable text labels -->
+            <div class="drag-label absolute cursor-move px-2 py-1 rounded-md bg-slate-800/80 dark:bg-slate-900/80 text-white text-xs font-semibold select-none backdrop-blur-sm" id="lbl_name" data-field="name">
+                Student name
+            </div>
+            <div class="drag-label absolute cursor-move px-2 py-1 rounded-md bg-blue-700/80 dark:bg-blue-900/80 text-white text-[11px] font-medium select-none backdrop-blur-sm" id="lbl_event" data-field="event">
+                Event name
+            </div>
+            <div class="drag-label absolute cursor-move px-2 py-1 rounded-md bg-amber-600/80 dark:bg-amber-800/80 text-white text-[11px] font-medium select-none backdrop-blur-sm" id="lbl_position" data-field="position">
+                Position
+            </div>
+            <div class="drag-label absolute cursor-move px-2 py-1 rounded-md bg-green-700/80 dark:bg-green-900/80 text-white text-[11px] font-medium select-none backdrop-blur-sm" id="lbl_house" data-field="house">
+                House & Class
+            </div>
+            <div class="drag-label absolute cursor-move px-2 py-1 rounded-md bg-gray-600/80 dark:bg-slate-700/80 text-white text-[11px] font-medium select-none backdrop-blur-sm" id="lbl_date" data-field="date">
+                Date
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings panel -->
+    <div class="flex flex-col gap-3">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-4 md:p-5">
+            <div class="text-sm font-semibold text-gray-900 dark:text-white mb-1">{{ tmpl.name }}</div>
+            <div class="text-[11px] text-gray-400 dark:text-gray-500">{{ tmpl.file_type|upper }} template · Drag labels on the preview to set positions</div>
+        </div>
+
+        <form method="POST" action="/certificates/template/edit/{{ tmpl.id }}" id="settingsForm" class="flex flex-col gap-3">
+
+            <!-- Hidden position inputs updated by drag -->
+            <input type="hidden" name="name_x" id="inp_name_x" value="{{ tmpl.name_x }}">
+            <input type="hidden" name="name_y" id="inp_name_y" value="{{ tmpl.name_y }}">
+            <input type="hidden" name="event_x" id="inp_event_x" value="{{ tmpl.event_x }}">
+            <input type="hidden" name="event_y" id="inp_event_y" value="{{ tmpl.event_y }}">
+            <input type="hidden" name="position_x" id="inp_position_x" value="{{ tmpl.position_x }}">
+            <input type="hidden" name="position_y" id="inp_position_y" value="{{ tmpl.position_y }}">
+            <input type="hidden" name="house_x" id="inp_house_x" value="{{ tmpl.house_x }}">
+            <input type="hidden" name="house_y" id="inp_house_y" value="{{ tmpl.house_y }}">
+            <input type="hidden" name="date_x" id="inp_date_x" value="{{ tmpl.date_x }}">
+            <input type="hidden" name="date_y" id="inp_date_y" value="{{ tmpl.date_y }}">
+
+            {% for field, label, default_size, default_color in [
+                ('name', 'Student name', tmpl.name_font_size, tmpl.name_color),
+                ('event', 'Event name', tmpl.event_font_size, tmpl.event_color),
+                ('position', 'Position', tmpl.position_font_size, tmpl.position_color),
+                ('house', 'House & Class', tmpl.house_font_size, tmpl.house_color),
+                ('date', 'Date', tmpl.date_font_size, tmpl.date_color)
+            ] %}
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-4">
+                <div class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2.5">{{ label }}</div>
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="text-[11px] text-gray-400 dark:text-gray-500 mb-1 block">Font size</label>
+                        <input type="number" name="{{ field }}_font_size" value="{{ default_size }}"
+                            min="8" max="80"
+                            class="w-full border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50">
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-gray-400 dark:text-gray-500 mb-1 block">Color</label>
+                        <input type="color" name="{{ field }}_color" value="{{ default_color }}"
+                            class="w-full h-8 border border-gray-200 dark:border-slate-600 rounded-lg cursor-pointer p-0.5 bg-white dark:bg-slate-700">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn-primary w-full text-center mt-1">
+                Save all settings
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+var fields = ['name', 'event', 'position', 'house', 'date'];
+var initialPositions = {
+    name:     { x: {{ tmpl.name_x }},     y: {{ tmpl.name_y }} },
+    event:    { x: {{ tmpl.event_x }},    y: {{ tmpl.event_y }} },
+    position: { x: {{ tmpl.position_x }}, y: {{ tmpl.position_y }} },
+    house:    { x: {{ tmpl.house_x }},    y: {{ tmpl.house_y }} },
+    date:     { x: {{ tmpl.date_x }},     y: {{ tmpl.date_y }} }
+};
+
+function initPreview() {
+    const container = document.getElementById('previewContainer');
+    const cw = container.offsetWidth;
+    const ch = container.offsetHeight;
+
+    fields.forEach(field => {
+        const lbl = document.getElementById('lbl_' + field);
+        const pos = initialPositions[field];
+
+        // Position label based on percentage
+        lbl.style.left = (pos.x / 100 * cw - lbl.offsetWidth / 2) + 'px';
+        lbl.style.top  = (pos.y / 100 * ch - lbl.offsetHeight / 2) + 'px';
+
+        // Make draggable
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        lbl.addEventListener('mousedown', e => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = lbl.offsetLeft;
+            startTop  = lbl.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const newLeft = Math.max(0, Math.min(cw - lbl.offsetWidth, startLeft + dx));
+            const newTop  = Math.max(0, Math.min(ch - lbl.offsetHeight, startTop + dy));
+            lbl.style.left = newLeft + 'px';
+            lbl.style.top  = newTop + 'px';
+
+            // Update hidden inputs as percentages
+            const xPct = Math.round((newLeft + lbl.offsetWidth/2) / cw * 100);
+            const yPct = Math.round((newTop + lbl.offsetHeight/2) / ch * 100);
+            document.getElementById('inp_' + field + '_x').value = xPct;
+            document.getElementById('inp_' + field + '_y').value = yPct;
+        });
+
+        document.addEventListener('mouseup', () => { isDragging = false; });
+    });
+}
+
+// If no image (docx template), still init with fixed container size
+window.addEventListener('load', () => {
+    const img = document.getElementById('bgImage');
+    if (!img) initPreview();
+});
+</script>
+{% endblock %}

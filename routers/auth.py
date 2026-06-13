@@ -1,0 +1,55 @@
+from fastapi import APIRouter, Request, Form, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.models import Admin
+from jose import jwt
+from datetime import datetime, timedelta
+import bcrypt
+
+router = APIRouter()
+templates = Jinja2Templates(directory="app/templates")
+
+SECRET_KEY = "nps-secret-key-2024"
+ALGORITHM = "HS256"
+
+def create_token(email: str):
+    expire = datetime.utcnow() + timedelta(hours=8)
+    return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("sub")
+    except:
+        return None
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    referer = request.headers.get("referer")
+    host_url = str(request.base_url)
+    if not referer or not referer.startswith(host_url):
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse(request, "admin/login.html", {})
+@router.post("/login")
+async def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    admin = db.query(Admin).filter(Admin.email == email).first()
+    if not admin or not verify_password(password, admin.password_hash):
+        return templates.TemplateResponse(request, "admin/login.html", {
+            "error": "Invalid email or password"})
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie("access_token", create_token(email), httponly=True)
+    return response
+
+@router.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie("access_token")
+    return response
