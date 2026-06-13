@@ -233,7 +233,7 @@ function setGrade(g) {
 }
 
 function openEdit(id, name, roll, cls, houseId) {
-    document.getElementById('editForm').action = '/students/edit/' + id;
+    document.getElementById('editForm').setAttribute('action', '/students/edit/' + id);
     document.getElementById('editName').value = name;
     document.getElementById('editRoll').value = roll;
     document.getElementById('editClass').value = cls;

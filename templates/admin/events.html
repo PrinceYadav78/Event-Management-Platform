@@ -281,7 +281,7 @@ function setView(v) {
     doFilter();
 }
 function openEdit(id, name, cat, date, type, grade, status) {
-    document.getElementById('editForm').action = '/events/edit/' + id;
+    document.getElementById('editForm').setAttribute('action', '/events/edit/' + id);
     document.getElementById('editName').value = name;
     document.getElementById('editCat').value = cat;
     document.getElementById('editDate').value = date;
