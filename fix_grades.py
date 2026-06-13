@@ -1,5 +1,5 @@
-from app.database import SessionLocal
-from app.models.models import Student, get_grade_group
+from database import SessionLocal
+from models.models import Student, get_grade_group
 
 db = SessionLocal()
 students = db.query(Student).all()

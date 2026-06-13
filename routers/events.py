@@ -2,11 +2,11 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.models import Event, EventParticipant, Student, House, PointsConfig
-from app.routers.auth import verify_token
-from app.models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings
-from app.models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings, Admin
+from database import get_db
+from models.models import Event, EventParticipant, Student, House, PointsConfig
+from routers.auth import verify_token
+from models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings
+from models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings, Admin
 def is_locked(db):
     term = db.query(TermSettings).first()
     return term.is_locked if term else False

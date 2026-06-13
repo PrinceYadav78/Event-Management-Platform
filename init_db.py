@@ -1,6 +1,6 @@
-from app.database import SessionLocal
-from app.models.models import House, PointsConfig, Admin, SchoolClass
-from app.models.models import get_grade_group
+from database import SessionLocal
+from models.models import House, PointsConfig, Admin, SchoolClass
+from models.models import get_grade_group
 import bcrypt
 
 def hash_password(password: str) -> str:

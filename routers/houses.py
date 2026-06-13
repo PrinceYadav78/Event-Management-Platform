@@ -2,9 +2,9 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.models import House, PointsConfig
-from app.routers.auth import verify_token
+from database import get_db
+from models.models import House, PointsConfig
+from routers.auth import verify_token
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")

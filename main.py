@@ -2,10 +2,10 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
-from app.database import engine, Base
-from app.models import models
-from app.routers import events, students, houses, certificates, auth, dashboard, settings
-from app.init_db import init_db
+from database import engine, Base
+from models import models
+from routers import events, students, houses, certificates, auth, dashboard, settings
+from init_db import init_db
 
 Base.metadata.create_all(bind=engine)
 

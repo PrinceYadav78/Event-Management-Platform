@@ -2,9 +2,9 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.models import CertificateTemplate, EventParticipant, Event, Student, CustomTemplate
-from app.routers.auth import verify_token
+from database import get_db
+from models.models import CertificateTemplate, EventParticipant, Event, Student, CustomTemplate
+from routers.auth import verify_token
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as pdf_canvas

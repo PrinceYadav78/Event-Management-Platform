@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.models import Admin
+from database import get_db
+from models.models import Admin
 from jose import jwt
 from datetime import datetime, timedelta
 import bcrypt

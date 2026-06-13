@@ -2,10 +2,10 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.models import SchoolClass, TermSettings, Student, House
-from app.models.models import get_grade_group
-from app.routers.auth import verify_token
+from database import get_db
+from models.models import SchoolClass, TermSettings, Student, House
+from models.models import get_grade_group
+from routers.auth import verify_token
 from datetime import datetime
 import csv
 import io
