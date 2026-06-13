@@ -2,10 +2,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./school_events.db"
+SQLALCHEMY_DATABASE_URL = "postgresql://neondb_owner:npg_o6DSWznaIce8@ep-empty-sea-aoq0q3bx.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
