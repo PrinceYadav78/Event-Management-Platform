@@ -15,9 +15,9 @@ import shutil
 import uuid
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
-UPLOAD_DIR = "app/static/templates_upload"
+UPLOAD_DIR = "static/templates_upload"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.get("/certificates", response_class=HTMLResponse)

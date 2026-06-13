@@ -7,7 +7,7 @@ from models.models import House, Student, Event, CertificateTemplate
 from routers.auth import verify_token
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):

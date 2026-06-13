@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-do-not-use-in-prod")
 ALGORITHM = "HS256"

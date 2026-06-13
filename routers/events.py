@@ -12,7 +12,7 @@ def is_locked(db):
     return term.is_locked if term else False
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
 @router.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request, db: Session = Depends(get_db)):

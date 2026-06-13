@@ -11,7 +11,7 @@ import csv
 import io
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
 def is_term_locked(db: Session) -> bool:
     term = db.query(TermSettings).first()
