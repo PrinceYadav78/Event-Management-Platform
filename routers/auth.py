@@ -37,10 +37,6 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    referer = request.headers.get("referer")
-    host_url = str(request.base_url)
-    if not referer or not referer.startswith(host_url):
-        return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "admin/login.html", {})
 @router.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
