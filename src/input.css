@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Drive dark mode from the `.dark` class on <html> (which is always present)
+   instead of the OS prefers-color-scheme setting, so the UI is permanently
+   dark on every machine regardless of the user's Windows light/dark theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
