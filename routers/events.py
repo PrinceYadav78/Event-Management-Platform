@@ -7,12 +7,11 @@ from models.models import Event, EventParticipant, Student, House, PointsConfig
 from routers.auth import verify_token
 from models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings
 from models.models import Event, EventParticipant, Student, House, PointsConfig, TermSettings, Admin
-def is_locked(db):
-    term = db.query(TermSettings).first()
-    return term.is_locked if term else False
+from terms import is_term_locked as is_locked
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from templating import templates
+from audit import log_action
 
 @router.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request, db: Session = Depends(get_db)):
@@ -52,6 +51,7 @@ async def add_event(
     )
     db.add(event)
     db.commit()
+    log_action(db, request, "Created event", name)
     return RedirectResponse(url="/events", status_code=303)
 
 @router.get("/events/{event_id}", response_class=HTMLResponse)
@@ -139,6 +139,7 @@ async def record_results(
 
     event.is_completed = True
     db.commit()
+    log_action(db, request, "Recorded results", event.name if event else event_id)
     return RedirectResponse(url=f"/events/{event_id}", status_code=303)
 
 @router.post("/events/delete/{event_id}")

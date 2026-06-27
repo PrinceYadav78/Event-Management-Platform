@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Manage houses - NPS{% endblock %}
+{% block page_title %}Manage houses{% endblock %}
+
+{% block header_actions %}
+<a href="/houses" class="btn-secondary no-underline">Back to houses</a>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5 max-w-3xl">
+
+    {% if msg %}
+    <div id="toast" class="toast
+        {% if msg == 'has_students' %}toast-error{% else %}toast-success{% endif %}">
+        {% if msg == 'added' %}House created and synced.
+        {% elif msg == 'updated' %}House updated and synced.
+        {% elif msg == 'deleted' %}House removed.
+        {% elif msg == 'has_students' %}Can't delete — this house still has students assigned. Reassign them first.
+        {% else %}Done.{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Add house -->
+    <div class="card">
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="section-title text-sm">Add a house</span>
+        </div>
+        <p class="text-xs text-slate-400 mb-4">New houses sync to the whole application instantly.</p>
+        <form method="POST" action="/houses/manage/add" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div class="flex-1">
+                <label class="form-label">House name</label>
+                <input type="text" name="name" required placeholder="e.g. Aristotle" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">Colour</label>
+                <input type="color" name="color" value="#2563eb" class="w-full sm:w-16 h-[38px] rounded-xl bg-slate-900/50 border border-white/10 cursor-pointer p-1" title="Pick house colour">
+            </div>
+            <button type="submit" class="btn-primary h-[38px] whitespace-nowrap">Add house</button>
+        </form>
+    </div>
+
+    <!-- Existing houses -->
+    <div class="card">
+        <div class="flex items-center gap-2.5 mb-4">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></span>
+            <span class="section-title text-sm">Houses</span>
+        </div>
+        {% if houses %}
+        <div class="flex flex-col gap-3">
+            {% for h in houses %}
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/5">
+                <form method="POST" action="/houses/manage/edit/{{ h.id }}" class="flex flex-1 items-center gap-3 min-w-0">
+                    <span class="w-3 h-3 rounded-full shrink-0" style="background:{{ h.color }}; box-shadow:0 0 8px {{ h.color }};"></span>
+                    <input type="color" name="color" value="{{ h.color }}" class="w-10 h-9 rounded-lg bg-transparent border border-white/10 cursor-pointer shrink-0 p-0.5" title="Change colour">
+                    <input type="text" name="name" value="{{ h.name }}" required class="form-input flex-1 min-w-0">
+                    <button type="submit" class="btn-secondary whitespace-nowrap !px-3 !py-2">Save</button>
+                </form>
+                <div class="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                    <span class="text-xs text-slate-400 num">{{ counts[h.id] }} students · {{ h.total_points }} pts</span>
+                    <form method="POST" action="/houses/manage/delete/{{ h.id }}" onsubmit="return confirm('Delete {{ h.name }}? This cannot be undone.')">
+                        <button class="text-xs text-red-400 hover:underline cursor-pointer bg-transparent border-none">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-10 px-4 border border-dashed border-white/10 rounded-xl">
+            <p class="text-slate-300 text-sm font-medium">No houses yet</p>
+            <p class="text-slate-500 text-xs mt-1">Add one above to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    var t = document.getElementById('toast');
+    if (t) setTimeout(function () { t.remove(); }, 4000);
+</script>
+{% endblock %}

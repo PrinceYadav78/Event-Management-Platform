@@ -12,7 +12,8 @@
 {% set msg = request.query_params.get('msg') %}
 
 {% if msg == 'results_updated' %}
-<div id="toast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 dark:bg-green-900/50 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 text-[13px] font-medium shadow-lg">
+<div id="toast" class="toast toast-success fixed top-4 right-4 z-50">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
     Results updated and house points recalculated successfully.
     <button onclick="document.getElementById('toast').remove()" class="bg-transparent border-none cursor-pointer opacity-50 hover:opacity-100">✕</button>
 </div>
@@ -20,41 +21,67 @@
 
 <div class="flex flex-col gap-4">
 
-    <!-- Event info bar -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 px-6">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5">Category</div>
-                {% if event.category == 'Sports' %}
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">🏅 {{ event.category }}</span>
-                {% elif event.category == 'Academic' %}
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">📚 {{ event.category }}</span>
-                {% elif event.category == 'Cultural' %}
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">🎭 {{ event.category }}</span>
-                {% else %}
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 dark:bg-slate-700/50 dark:text-gray-400">📌 {{ event.category }}</span>
-                {% endif %}
+    <!-- Overview stat strip -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <!-- Category -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div class="min-w-0">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Category</div>
+                    <div class="text-[20px] font-bold text-white leading-none truncate">{{ event.category }}</div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                </div>
             </div>
-            <div>
-                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5">Grade group</div>
-                {% if event.grade_group == 'Primary' %}
-                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">{{ event.grade_group }}</span>
-                {% elif event.grade_group == 'Middle' %}
-                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{{ event.grade_group }}</span>
-                {% else %}
-                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">{{ event.grade_group }}</span>
-                {% endif %}
+        </div>
+
+        <!-- Grade group -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div class="min-w-0">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Grade group</div>
+                    <div class="text-[20px] font-bold text-white leading-none truncate">{{ event.grade_group }}</div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-400/25 flex items-center justify-center text-purple-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                </div>
             </div>
-            <div>
-                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5">Date</div>
-                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ event.event_date }}</div>
+        </div>
+
+        <!-- Date -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div class="min-w-0">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Date</div>
+                    <div class="text-[20px] font-bold text-white leading-none num truncate">{{ event.event_date }}</div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-400/25 flex items-center justify-center text-amber-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </div>
             </div>
-            <div>
-                <div class="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5">Status</div>
+        </div>
+
+        <!-- Status -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div class="min-w-0">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Status</div>
+                    {% if event.is_completed %}
+                    <div class="text-[20px] font-bold text-emerald-300 leading-none">Completed</div>
+                    {% else %}
+                    <div class="text-[20px] font-bold text-amber-300 leading-none">Upcoming</div>
+                    {% endif %}
+                </div>
                 {% if event.is_completed %}
-                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">✓ Completed</span>
+                <div class="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-400/25 flex items-center justify-center text-emerald-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+                </div>
                 {% else %}
-                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">⏳ Upcoming</span>
+                <div class="w-11 h-11 rounded-xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -65,7 +92,10 @@
 
         <!-- Add participant -->
         <div class="card">
-            <div class="text-sm font-semibold text-gray-900 dark:text-white mb-3.5">Add participant</div>
+            <div class="flex items-center gap-2.5 mb-4">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
+                <span class="section-title text-sm">Add participant</span>
+            </div>
             {% if students|length > participated_ids|length %}
             <form method="POST" action="/events/{{ event.id }}/add_participant" class="flex gap-2">
                 <select name="student_id" class="form-input flex-1">
@@ -78,7 +108,13 @@
                 <button type="submit" class="btn-primary">Add</button>
             </form>
             {% else %}
-            <div class="text-[13px] text-gray-400 dark:text-gray-500 text-center py-4">All students added.</div>
+            <div class="rounded-xl border border-dashed border-white/15 bg-white/5 flex flex-col items-center justify-center text-center py-8 px-4">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-400/25 flex items-center justify-center text-emerald-300 mb-2.5">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="text-[13px] text-slate-300 font-medium">All students added</div>
+                <div class="text-xs text-slate-500 mt-0.5">Every eligible student is already a participant.</div>
+            </div>
             {% endif %}
         </div>
 
@@ -87,13 +123,16 @@
 
             {% if not event.is_completed and participants %}
             <!-- Record results for first time -->
-            <div class="text-sm font-semibold text-gray-900 dark:text-white mb-3.5">Record results</div>
+            <div class="flex items-center gap-2.5 mb-4">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+                <span class="section-title text-sm">Record results</span>
+            </div>
             <form method="POST" action="/events/{{ event.id }}/record_results">
                 <div class="flex flex-col gap-2 max-h-[200px] overflow-y-auto mb-3.5 pr-2">
                     {% for p in participants %}
-                    <div class="flex items-center gap-2.5 px-2.5 py-2 bg-gray-50 dark:bg-slate-700/50 rounded-xl">
+                    <div class="flex items-center gap-2.5 px-2.5 py-2 bg-white/5 border border-white/10 rounded-xl">
                         <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style="background:{{ p.student.house.color }};">{{ p.student.name[0] }}</div>
-                        <span class="text-[13px] text-gray-700 dark:text-gray-300 flex-1">{{ p.student.name }}</span>
+                        <span class="text-[13px] text-slate-200 flex-1">{{ p.student.name }}</span>
                         <select name="position_{{ p.id }}" class="form-input !w-auto !py-1.5 !text-xs">
                             <option value="">Participation</option>
                             <option value="1">🥇 1st place</option>
@@ -108,9 +147,15 @@
 
             {% elif event.is_completed and edit_results %}
             <!-- Edit results — unlocked -->
-            <div class="flex items-center justify-between mb-3.5">
-                <div class="text-sm font-semibold text-gray-900 dark:text-white">Edit results</div>
-                <span class="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 font-medium">🔓 Unlocked</span>
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="icon-badge w-7 h-7 text-orange-300 border-orange-400/25"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+                    <span class="section-title text-sm">Edit results</span>
+                </div>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-400/30 text-orange-300 font-medium inline-flex items-center gap-1">
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    Unlocked
+                </span>
             </div>
             <form method="POST" action="/events/{{ event.id }}/edit_results" id="editResultsForm">
                 <input type="text" id="editSearch" placeholder="Search student..."
@@ -118,10 +163,10 @@
                     class="form-input mb-2.5">
                 <div id="editParticipantList" class="flex flex-col gap-2 max-h-[200px] overflow-y-auto mb-3.5 pr-2">
                     {% for p in participants %}
-                    <div class="edit-participant-row flex items-center gap-2.5 px-2.5 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl" data-name="{{ p.student.name|lower }}">
+                    <div class="edit-participant-row flex items-center gap-2.5 px-2.5 py-2 bg-orange-500/10 border border-orange-400/25 rounded-xl" data-name="{{ p.student.name|lower }}">
                         <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style="background:{{ p.student.house.color }};">{{ p.student.name[0] }}</div>
-                        <span class="text-[13px] text-gray-700 dark:text-gray-300 flex-1">{{ p.student.name }}</span>
-                        <select name="position_{{ p.id }}" class="form-input !w-auto !py-1.5 !text-xs !border-orange-200 dark:!border-orange-800 !bg-white dark:!bg-slate-800">
+                        <span class="text-[13px] text-slate-200 flex-1">{{ p.student.name }}</span>
+                        <select name="position_{{ p.id }}" class="form-input !w-auto !py-1.5 !text-xs !border-orange-400/40">
                             <option value="" {% if not p.position %}selected{% endif %}>Participation</option>
                             <option value="1" {% if p.position == 1 %}selected{% endif %}>🥇 1st place</option>
                             <option value="2" {% if p.position == 2 %}selected{% endif %}>🥈 2nd place</option>
@@ -138,32 +183,44 @@
 
             {% elif event.is_completed %}
             <!-- Locked state -->
-            <div class="text-center py-4">
-                <div class="text-[32px] mb-2">🔒</div>
-                <div class="text-sm font-semibold text-gray-900 dark:text-white mb-1">Results locked</div>
-                <div class="text-xs text-gray-400 dark:text-gray-500 mb-4">Enter your admin password to edit results.</div>
+            <div class="rounded-xl border border-dashed border-white/15 bg-white/5 flex flex-col items-center justify-center text-center py-8 px-4">
+                <div class="w-12 h-12 rounded-xl bg-red-500/15 border border-red-400/25 flex items-center justify-center text-red-300 mb-3">
+                    <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div class="text-sm font-semibold text-white mb-1">Results locked</div>
+                <div class="text-xs text-slate-400 mb-4">Enter your admin password to edit results.</div>
                 {% if unlock_error %}
-                <div class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-lg mb-3">Incorrect password. Please try again.</div>
+                <div class="text-xs text-red-300 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded-lg mb-3">Incorrect password. Please try again.</div>
                 {% endif %}
                 <button onclick="document.getElementById('unlockModal').classList.remove('hidden')"
                     class="btn-secondary">
-                    🔓 Unlock to edit results
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="mr-1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    Unlock to edit results
                 </button>
             </div>
 
             {% else %}
-            <div class="text-center py-6 text-gray-400 dark:text-gray-500 text-[13px]">Add participants first to record results.</div>
+            <div class="rounded-xl border border-dashed border-white/15 bg-white/5 flex flex-col items-center justify-center text-center py-8 px-4">
+                <div class="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-300 mb-2.5">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                </div>
+                <div class="text-[13px] text-slate-300 font-medium">No participants yet</div>
+                <div class="text-xs text-slate-500 mt-0.5">Add participants first to record results.</div>
+            </div>
             {% endif %}
 
         </div>
     </div>
 
     <!-- Participants table -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-        <div class="px-6 py-4.5 border-b border-gray-50 dark:border-slate-700/50 flex items-center justify-between gap-3">
-            <div class="text-sm font-semibold text-gray-900 dark:text-white">Participants ({{ participants|length }})</div>
+    <div class="card !p-0 overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                <span class="section-title text-sm">Participants (<span class="num">{{ participants|length }}</span>)</span>
+            </div>
             <div class="relative flex-1 max-w-[280px]">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                 <input type="text" id="tableSearch" placeholder="Search participant..."
                     oninput="filterTable()"
                     class="form-input !pl-8 !py-1.5">
@@ -173,7 +230,7 @@
         <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
             <thead>
-                <tr class="bg-gray-50 dark:bg-slate-800/50">
+                <tr>
                     <th class="table-header">Student</th>
                     <th class="table-header">Class</th>
                     <th class="table-header">House</th>
@@ -183,30 +240,30 @@
             </thead>
             <tbody>
                 {% for p in participants %}
-                <tr class="participant-row border-b border-gray-50 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors" data-name="{{ p.student.name|lower }}">
+                <tr class="participant-row hover:bg-white/5 transition-colors" data-name="{{ p.student.name|lower }}">
                     <td class="table-cell">
                         <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style="background:{{ p.student.house.color }};">{{ p.student.name[0] }}</div>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ p.student.name }}</span>
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0" style="background:{{ p.student.house.color }};">{{ p.student.name[0] }}</div>
+                            <span class="text-sm font-medium text-white">{{ p.student.name }}</span>
                         </div>
                     </td>
-                    <td class="table-cell !text-[13px]">{{ p.student.class_name }}</td>
+                    <td class="table-cell !text-[13px] text-slate-300">{{ p.student.class_name }}</td>
                     <td class="table-cell">
-                        <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-300">
                             <span class="w-2 h-2 rounded-full inline-block" style="background:{{ p.student.house.color }};"></span>
                             {{ p.student.house.name }}
                         </span>
                     </td>
                     <td class="table-cell">
-                        {% if p.position == 1 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">🥇 1st</span>
-                        {% elif p.position == 2 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">🥈 2nd</span>
-                        {% elif p.position == 3 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">🥉 3rd</span>
-                        {% elif p.position %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-50 dark:bg-slate-700/50 text-gray-500 dark:text-gray-400">{{ p.position }}th</span>
-                        {% else %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-50 dark:bg-slate-700/50 text-gray-400 dark:text-gray-500">Participant</span>
+                        {% if p.position == 1 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 border border-amber-400/30 text-amber-300">🥇 1st</span>
+                        {% elif p.position == 2 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-300/15 border border-slate-300/25 text-slate-200">🥈 2nd</span>
+                        {% elif p.position == 3 %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-orange-500/15 border border-orange-400/30 text-orange-300">🥉 3rd</span>
+                        {% elif p.position %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/5 border border-white/10 text-slate-400 num">{{ p.position }}th</span>
+                        {% else %}<span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/5 border border-white/10 text-slate-400">Participant</span>
                         {% endif %}
                     </td>
                     <td class="table-cell">
-                        <span class="text-[15px] font-bold {% if p.points_awarded > 0 %}text-green-700 dark:text-green-500{% else %}text-gray-400 dark:text-gray-500{% endif %};">{{ p.points_awarded }} pts</span>
+                        <span class="text-[15px] font-bold num {% if p.points_awarded > 0 %}text-emerald-400{% else %}text-slate-500{% endif %};">{{ p.points_awarded }} pts</span>
                     </td>
                 </tr>
                 {% endfor %}
@@ -214,18 +271,28 @@
         </table>
         </div>
         {% else %}
-        <div class="text-center py-10 text-gray-400 dark:text-gray-500 text-[13px]">No participants yet.</div>
+        <div class="p-5">
+            <div class="rounded-xl border border-dashed border-white/15 bg-white/5 flex flex-col items-center justify-center text-center py-12 px-4">
+                <div class="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 mb-3">
+                    <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="text-sm font-semibold text-white mb-1">No participants yet</div>
+                <div class="text-xs text-slate-400">Use the Add participant panel above to get started.</div>
+            </div>
+        </div>
         {% endif %}
     </div>
 </div>
 
 <!-- Unlock modal -->
-<div id="unlockModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 p-4">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl p-7 w-full max-w-[380px] shadow-xl">
+<div id="unlockModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="glass-panel p-7 w-full max-w-[380px] shadow-xl">
         <div class="text-center mb-5">
-            <div class="text-[32px] mb-2">🔐</div>
-            <div class="text-base font-bold text-gray-900 dark:text-white mb-1">Admin verification</div>
-            <div class="text-[13px] text-gray-400 dark:text-gray-500">Enter your password to unlock result editing</div>
+            <div class="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-300 mx-auto mb-3">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="text-base font-bold text-white mb-1">Admin verification</div>
+            <div class="text-[13px] text-slate-400">Enter your password to unlock result editing</div>
         </div>
         <form method="POST" action="/events/{{ event.id }}/verify_admin">
             <div class="mb-4">
@@ -243,14 +310,16 @@
 </div>
 
 <!-- Confirm modal -->
-<div id="confirmModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 p-4">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl p-7 w-full max-w-[400px] shadow-xl">
+<div id="confirmModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="glass-panel p-7 w-full max-w-[400px] shadow-xl">
         <div class="text-center mb-5">
-            <div class="text-[32px] mb-2">⚠️</div>
-            <div class="text-base font-bold text-gray-900 dark:text-white mb-1">Confirm result changes</div>
-            <div class="text-[13px] text-gray-400 dark:text-gray-500 leading-relaxed">Saving these changes will <strong class="text-gray-700 dark:text-gray-300">recalculate house points</strong> based on the new positions.</div>
+            <div class="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-400/25 flex items-center justify-center text-amber-300 mx-auto mb-3">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="text-base font-bold text-white mb-1">Confirm result changes</div>
+            <div class="text-[13px] text-slate-400 leading-relaxed">Saving these changes will <strong class="text-slate-200">recalculate house points</strong> based on the new positions.</div>
         </div>
-        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-3 mb-4 text-xs text-orange-800 dark:text-orange-300">
+        <div class="bg-orange-500/10 border border-orange-400/25 rounded-xl p-3 mb-4 text-xs text-orange-300">
             Make sure all positions are correct before confirming. House points will be adjusted automatically.
         </div>
         <div class="flex gap-2.5">

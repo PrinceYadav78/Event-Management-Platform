@@ -24,13 +24,16 @@
 <div class="flex flex-col gap-5">
 
     <!-- Section 1: Generate -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
-        <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">Generate certificates</div>
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="icon-badge w-7 h-7 text-amber-300"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1"/></svg></span>
+            <span class="section-title">Generate certificates</span>
+        </div>
         <div class="text-xs text-gray-400 dark:text-gray-500 mb-4">Only completed events appear here. If a custom .docx template is set as default it will be used, otherwise the built-in PDF design is used.</div>
         {% if events %}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {% for event in events %}
-            <div class="flex items-center justify-between p-3.5 md:p-4 border border-gray-100 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-700/30">
+            <div class="flex items-center justify-between p-3.5 md:p-4 border border-white/10 rounded-xl bg-white/5">
                 <div>
                     <div class="text-sm font-medium text-gray-900 dark:text-white">{{ event.name }}</div>
                     <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{{ event.category }} · {{ event.grade_group }} · {{ event.event_date }}</div>
@@ -45,8 +48,11 @@
     </div>
 
     <!-- Section 2: Upload custom template -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
-        <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">Upload your own Word template</div>
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="icon-badge w-7 h-7 text-blue-300"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span>
+            <span class="section-title">Upload your own Word template</span>
+        </div>
         <div class="text-xs text-gray-400 dark:text-gray-500 mb-2">Upload a <strong>.docx</strong> file designed in Microsoft Word. Use these placeholders inside your Word file — they get replaced automatically per student:</div>
         <div class="flex flex-wrap gap-1.5 mb-4">
             <span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-mono px-2 py-1 rounded-md">{{name}}</span>
@@ -70,7 +76,7 @@
             </div>
             <div class="flex items-center gap-4">
                 <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input type="checkbox" name="is_default" class="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-blue-600 focus:ring-blue-500"> Set as default template
+                    <input type="checkbox" name="is_default" class="rounded border-gray-300 dark:border-slate-600 bg-slate-900/50 backdrop-blur-md text-blue-600 focus:ring-blue-500"> Set as default template
                 </label>
                 <button type="submit" class="btn-primary">Upload template</button>
             </div>
@@ -79,13 +85,18 @@
 
     <!-- Section 3: Uploaded templates list -->
     {% if custom_templates %}
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
-        <div class="text-base font-semibold text-gray-900 dark:text-white mb-4">Your uploaded templates</div>
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-4">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            <span class="section-title">Your uploaded templates</span>
+        </div>
         <div class="flex flex-col gap-2.5">
             {% for t in custom_templates %}
-            <div class="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-700/30">
+            <div class="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-white/5">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-lg">📄</div>
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-400/20 flex items-center justify-center text-blue-300">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                    </div>
                     <div>
                         <div class="text-sm font-medium text-gray-900 dark:text-white">{{ t.name }}</div>
                         <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{{ t.filename }}</div>
@@ -97,7 +108,7 @@
                 <div class="flex gap-2">
                     {% if not t.is_default %}
                     <form method="POST" action="/certificates/template/set_default/{{ t.id }}">
-                        <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">Set default</button>
+                        <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer border border-white/10 bg-slate-900/50 backdrop-blur-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">Set default</button>
                     </form>
                     {% endif %}
                     <form method="POST" action="/certificates/template/delete/{{ t.id }}" onsubmit="return confirm('Delete this template?')">
@@ -111,8 +122,11 @@
     {% endif %}
 
     <!-- Section 4: Built-in PDF template editor -->
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
-        <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">Built-in PDF template</div>
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg></span>
+            <span class="section-title">Built-in PDF template</span>
+        </div>
         <div class="text-xs text-gray-400 dark:text-gray-500 mb-4">
             Used when no custom Word template is set as default. Use
             <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{name}</span>,
@@ -147,7 +161,7 @@
             </div>
             <div class="flex items-center gap-4 mt-2">
                 <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input type="checkbox" name="is_default" class="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-blue-600 focus:ring-blue-500"> Set as default PDF template
+                    <input type="checkbox" name="is_default" class="rounded border-gray-300 dark:border-slate-600 bg-slate-900/50 backdrop-blur-md text-blue-600 focus:ring-blue-500"> Set as default PDF template
                 </label>
                 <button type="submit" class="btn-primary">Save template</button>
             </div>
@@ -156,11 +170,14 @@
 
     <!-- Section 5: Saved PDF templates -->
     {% if cert_templates %}
-    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 md:p-6">
-        <div class="text-base font-semibold text-gray-900 dark:text-white mb-4">Saved PDF templates</div>
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-4">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+            <span class="section-title">Saved PDF templates</span>
+        </div>
         <div class="flex flex-col gap-2.5">
             {% for t in cert_templates %}
-            <div class="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-xl">
+            <div class="flex items-center justify-between p-3 border border-white/10 rounded-xl">
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-medium text-gray-900 dark:text-white">{{ t.name }}</span>
                     {% if t.is_default %}

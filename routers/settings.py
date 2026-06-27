@@ -3,51 +3,60 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
-from models.models import SchoolClass, TermSettings, Student, House
+from models.models import SchoolClass, TermSettings, Student, House, Admin
 from models.models import get_grade_group
 from routers.auth import verify_token
 from datetime import datetime
 import csv
 import io
+import re
+
+YEAR_RE = re.compile(r"\d{4}-\d{2}")
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from templating import templates
+from audit import log_action
 
-def is_term_locked(db: Session) -> bool:
-    term = db.query(TermSettings).first()
-    return term.is_locked if term else False
+from terms import is_term_locked, get_active_term, default_academic_year
+
+def require_super_admin(request: Request, db: Session):
+    """Return the Admin row only if the caller is a logged-in super_admin."""
+    email = verify_token(request)
+    if not email:
+        return None
+    admin = db.query(Admin).filter(Admin.email == email).first()
+    return admin if (admin and admin.role == "super_admin") else None
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
     classes = db.query(SchoolClass).order_by(SchoolClass.class_name).all()
-    term = db.query(TermSettings).first()
+    terms = db.query(TermSettings).order_by(TermSettings.created_at.desc()).all()
     return templates.TemplateResponse(request, "admin/settings.html", {
         "classes": classes,
-        "term": term,
+        "terms": terms,
+        "active_term": get_active_term(db),
         "active": "settings"
     })
 
 @router.post("/settings/classes/add")
 async def add_class(
     request: Request,
-    class_name: str = Form(...),
+    grade: str = Form(...),
+    section: str = Form(...),
+    grade_group: str = Form(None),
     db: Session = Depends(get_db)
 ):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    existing = db.query(SchoolClass).filter(
-        SchoolClass.class_name == class_name
-    ).first()
-    if not existing:
-        grade_group = get_grade_group(class_name)
-        new_class = SchoolClass(
-            class_name=class_name,
-            grade_group=grade_group
-        )
-        db.add(new_class)
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    class_name = f"{grade.strip()} {section.strip()}".strip()
+    existing = db.query(SchoolClass).filter(SchoolClass.class_name == class_name).first()
+    if grade and section and not existing:
+        group = grade_group if grade_group in ("Primary", "Middle", "Senior") else get_grade_group(class_name)
+        db.add(SchoolClass(class_name=class_name, grade_group=group))
         db.commit()
+        log_action(db, request, "Added class", class_name)
     return RedirectResponse(url="/settings", status_code=303)
 
 @router.post("/settings/classes/delete/{class_id}")
@@ -56,115 +65,99 @@ async def delete_class(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
     school_class = db.query(SchoolClass).filter(
         SchoolClass.id == class_id
     ).first()
     if school_class:
+        _cn = school_class.class_name
         db.delete(school_class)
         db.commit()
+        log_action(db, request, "Deleted class", _cn)
     return RedirectResponse(url="/settings", status_code=303)
 
-@router.post("/settings/term/lock")
-async def lock_term(request: Request, db: Session = Depends(get_db)):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    term = db.query(TermSettings).first()
+@router.post("/settings/term/create")
+async def create_term(
+    request: Request,
+    term_name: str = Form(...),
+    academic_year: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    ay = (academic_year or "").strip()
+    if ay and not YEAR_RE.fullmatch(ay):
+        return RedirectResponse(url="/settings?msg=bad_year", status_code=303)
+    for t in db.query(TermSettings).all():
+        t.is_active = False
+    new_term = TermSettings(
+        term_name=term_name.strip(),
+        academic_year=(ay if ay else default_academic_year()),
+        is_active=True,
+        is_locked=False,
+    )
+    db.add(new_term)
+    db.commit()
+    log_action(db, request, "Created term", f"{new_term.term_name} ({new_term.academic_year})")
+    return RedirectResponse(url="/settings?msg=term_created", status_code=303)
+
+@router.post("/settings/term/edit/{term_id}")
+async def edit_term(
+    term_id: str,
+    request: Request,
+    term_name: str = Form(...),
+    academic_year: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    ay = (academic_year or "").strip()
+    if ay and not YEAR_RE.fullmatch(ay):
+        return RedirectResponse(url="/settings?msg=bad_year", status_code=303)
+    term = db.query(TermSettings).filter(TermSettings.id == term_id).first()
+    if term:
+        if term_name.strip():
+            term.term_name = term_name.strip()
+        term.academic_year = ay if ay else None
+        db.commit()
+        log_action(db, request, "Edited term", f"{term.term_name} ({term.academic_year})")
+    return RedirectResponse(url="/settings?msg=term_updated", status_code=303)
+
+@router.post("/settings/term/activate/{term_id}")
+async def activate_term(term_id: str, request: Request, db: Session = Depends(get_db)):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    target = db.query(TermSettings).filter(TermSettings.id == term_id).first()
+    if target:
+        for t in db.query(TermSettings).all():
+            t.is_active = (t.id == term_id)
+        db.commit()
+        log_action(db, request, "Switched active term", f"{target.term_name} ({target.academic_year})")
+    return RedirectResponse(url="/settings?msg=term_activated", status_code=303)
+
+@router.post("/settings/term/lock/{term_id}")
+async def lock_term(term_id: str, request: Request, db: Session = Depends(get_db)):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    term = db.query(TermSettings).filter(TermSettings.id == term_id).first()
     if term:
         term.is_locked = True
         term.locked_at = datetime.utcnow()
         db.commit()
+        log_action(db, request, "Locked term", term.term_name)
     return RedirectResponse(url="/settings?msg=locked", status_code=303)
 
-@router.post("/settings/term/unlock")
-async def unlock_term(request: Request, db: Session = Depends(get_db)):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    term = db.query(TermSettings).first()
+@router.post("/settings/term/unlock/{term_id}")
+async def unlock_term(term_id: str, request: Request, db: Session = Depends(get_db)):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    term = db.query(TermSettings).filter(TermSettings.id == term_id).first()
     if term:
         term.is_locked = False
         term.locked_at = None
         db.commit()
+        log_action(db, request, "Unlocked term", term.term_name)
     return RedirectResponse(url="/settings?msg=unlocked", status_code=303)
 
-@router.post("/settings/term/rename")
-async def rename_term(
-    request: Request,
-    term_name: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    term = db.query(TermSettings).first()
-    if term:
-        term.term_name = term_name
-        db.commit()
-    return RedirectResponse(url="/settings", status_code=303)
-
-@router.get("/settings/students/template")
-async def download_template(request: Request):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["name", "roll_number", "class_name", "house_name"])
-    writer.writerow(["Arjun Sharma", "2024001", "VI A", "Nicon"])
-    writer.writerow(["Priya Patel", "2024002", "IX B", "Maxims"])
-    output.seek(0)
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode()),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=students_template.csv"}
-    )
-
-@router.post("/settings/students/import")
-async def import_students(request: Request, db: Session = Depends(get_db)):
-    if not verify_token(request):
-        return RedirectResponse(url="/login", status_code=303)
-    if is_term_locked(db):
-        return RedirectResponse(url="/settings?msg=locked_error", status_code=303)
-    form = await request.form()
-    file = form.get("csv_file")
-    if not file:
-        return RedirectResponse(url="/settings?msg=no_file", status_code=303)
-    contents = await file.read()
-    text = contents.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
-    houses = {h.name.lower(): h for h in db.query(House).all()}
-    added = 0
-    skipped = 0
-    errors = []
-    for i, row in enumerate(reader, start=2):
-        try:
-            name = row.get("name", "").strip()
-            roll = row.get("roll_number", "").strip()
-            class_name = row.get("class_name", "").strip()
-            house_name = row.get("house_name", "").strip().lower()
-            if not all([name, roll, class_name, house_name]):
-                errors.append(f"Row {i}: missing fields")
-                skipped += 1
-                continue
-            if house_name not in houses:
-                errors.append(f"Row {i}: house '{house_name}' not found")
-                skipped += 1
-                continue
-            existing = db.query(Student).filter(Student.roll_number == roll).first()
-            if existing:
-                skipped += 1
-                continue
-            student = Student(
-                name=name,
-                roll_number=roll,
-                class_name=class_name,
-                grade_group=get_grade_group(class_name),
-                house_id=houses[house_name].id
-            )
-            db.add(student)
-            added += 1
-        except Exception as e:
-            errors.append(f"Row {i}: {str(e)}")
-            skipped += 1
-    db.commit()
-    msg = f"import_done_{added}_{skipped}"
-    return RedirectResponse(url=f"/settings?msg={msg}", status_code=303)
+# Student CSV import/template moved to the Students page (routers/students.py).

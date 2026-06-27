@@ -7,6 +7,10 @@
     class="btn-primary">
     + Add student
 </button>
+<button onclick="document.getElementById('bulkModal').classList.remove('hidden')"
+    class="btn-secondary">
+    Bulk Add
+</button>
 {% endblock %}
 
 {% block content %}
@@ -14,33 +18,104 @@
 {% set deleted_name = request.query_params.get('name') %}
 
 {% if msg %}
-<div id="toast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
-    {% if msg == 'deleted' %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800
-    {% elif msg == 'restored' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/50 dark:text-green-400 dark:border-green-800
-    {% elif msg == 'locked' %}bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/50 dark:text-amber-400 dark:border-amber-800
-    {% else %}bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-800{% endif %}">
+<div id="toast" class="toast fixed top-4 right-4 z-50
+    {% if msg == 'deleted' %}toast-error
+    {% elif msg == 'restored' %}toast-success
+    {% elif msg == 'locked' %}toast-warn
+    {% else %}toast-info{% endif %}">
     {% if msg == 'deleted' %}Deleted {{ deleted_name }}. <span id="undo-countdown" class="text-xs opacity-60">(10s)</span>
     {% elif msg == 'restored' %}Student restored successfully.
     {% elif msg == 'locked' %}Term is locked. Unlock in Settings to make changes.
     {% elif msg == 'edited' %}Student updated successfully.
+    {% elif msg.startswith('import_done') %}{% set parts = msg.split('_') %}Imported {{ parts[2] }} students, skipped {{ parts[3] }}.
     {% else %}Student added successfully.{% endif %}
     <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
 </div>
 {% endif %}
 
-<div class="space-y-4">
+<div class="space-y-5">
+    <!-- Overview stat strip -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Total students -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Total students</div>
+                    <div class="text-[28px] font-bold text-white leading-none num">{{ students|length }}</div>
+                    <div class="text-xs text-slate-400 mt-2">across <span class="num">{{ houses|length }}</span> houses</div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+            </div>
+        </div>
+        <!-- Grade groups -->
+        {% set primary_count = students|selectattr('grade_group', 'equalto', 'Primary')|list|length %}
+        {% set middle_count = students|selectattr('grade_group', 'equalto', 'Middle')|list|length %}
+        {% set senior_count = students|selectattr('grade_group', 'equalto', 'Senior')|list|length %}
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Grade groups</div>
+                    <div class="flex items-baseline gap-2.5 mt-1">
+                        <div><span class="text-[22px] font-bold text-white leading-none num">{{ primary_count }}</span><div class="text-[10px] uppercase tracking-wider text-slate-500 mt-1">Pri</div></div>
+                        <div><span class="text-[22px] font-bold text-white leading-none num">{{ middle_count }}</span><div class="text-[10px] uppercase tracking-wider text-slate-500 mt-1">Mid</div></div>
+                        <div><span class="text-[22px] font-bold text-white leading-none num">{{ senior_count }}</span><div class="text-[10px] uppercase tracking-wider text-slate-500 mt-1">Sen</div></div>
+                    </div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-400/25 flex items-center justify-center text-emerald-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                </div>
+            </div>
+        </div>
+        <!-- Houses -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Houses</div>
+                    <div class="text-[28px] font-bold text-white leading-none num">{{ houses|length }}</div>
+                    <div class="flex items-center gap-1.5 mt-2.5">
+                        {% for house in houses %}
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:{{ house.color }}; box-shadow:0 0 6px {{ house.color }};" title="{{ house.name }}"></span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-400/25 flex items-center justify-center text-purple-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+                </div>
+            </div>
+        </div>
+        <!-- Classes -->
+        <div class="stat-card">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Classes</div>
+                    <div class="text-[28px] font-bold text-white leading-none num">{{ classes|length }}</div>
+                    <div class="text-xs text-slate-400 mt-2">configured</div>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-400/25 flex items-center justify-center text-amber-300 shrink-0">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toolbar -->
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-4">
-        <div class="flex gap-3 items-center mb-3">
+    <div class="card">
+        <div class="flex items-center gap-2.5 mb-4">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></span>
+            <span class="section-title text-sm">Search & filter</span>
+        </div>
+        <div class="flex flex-col md:flex-row gap-3 md:items-center mb-4">
             <!-- Search -->
             <div class="relative flex-1">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                 <input type="text" id="searchBox" placeholder="Search name, roll number, class..."
                     oninput="doFilter()"
                     class="form-input !pl-9">
             </div>
             <!-- Sort -->
-            <select id="sortSelect" onchange="doFilter()" class="form-input !w-44">
+            <select id="sortSelect" onchange="doFilter()" class="form-input !w-full md:!w-44">
                 <option value="name">Name A–Z</option>
                 <option value="name-desc">Name Z–A</option>
                 <option value="roll">Roll number</option>
@@ -48,19 +123,20 @@
                 <option value="class">Class</option>
             </select>
             <!-- View toggle -->
-            <div class="flex border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
+            <div class="flex border border-white/10 rounded-xl overflow-hidden shrink-0 self-start md:self-auto">
                 <button id="btn-card" onclick="setView('card')"
                     class="px-3 py-2 text-xs font-medium bg-[#1a2535] dark:bg-blue-600 text-white transition-all">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 </button>
                 <button id="btn-table" onclick="setView('table')"
-                    class="px-3 py-2 text-xs font-medium bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 transition-all">
+                    class="px-3 py-2 text-xs font-medium bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400 transition-all">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
                 </button>
             </div>
         </div>
         <!-- House filters -->
-        <div class="flex gap-2 flex-wrap mb-2">
+        <div class="flex items-center gap-2 flex-wrap mb-2.5">
+            <span class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mr-1">House</span>
             <button class="filter-pill on" data-house="all" onclick="setHouse('all')">All houses</button>
             {% for house in houses %}
             <button class="filter-pill" data-house="{{ house.name }}" onclick="setHouse('{{ house.name }}')"
@@ -70,7 +146,8 @@
             {% endfor %}
         </div>
         <!-- Grade filters -->
-        <div class="flex gap-2 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mr-1">Grade</span>
             <button class="filter-pill on" data-grade="all" onclick="setGrade('all')">All grades</button>
             <button class="filter-pill" data-grade="Primary" onclick="setGrade('Primary')">Primary</button>
             <button class="filter-pill" data-grade="Middle" onclick="setGrade('Middle')">Middle</button>
@@ -78,13 +155,13 @@
         </div>
     </div>
 
-    <div id="resultsCount" class="text-xs text-gray-400 dark:text-gray-500 px-1"></div>
+    <div id="resultsCount" class="text-xs text-slate-400 px-1 num"></div>
 
     <!-- Card view -->
     <div id="cardView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
 
     <!-- Table view -->
-    <div id="tableView" class="hidden bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+    <div id="tableView" class="hidden bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-xl border border-white/10 overflow-hidden">
         <table class="w-full" id="studentsTable">
             <thead>
                 <tr>
@@ -103,10 +180,13 @@
 
 <!-- Add student modal -->
 <div id="addModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
         <div class="flex items-center justify-between mb-5">
-            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Add new student</h2>
-            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            <div class="flex items-center gap-2.5">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
+                <h2 class="section-title text-sm">Add new student</h2>
+            </div>
+            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
         </div>
         <form method="POST" action="/students/add" class="space-y-4">
             <div>
@@ -143,12 +223,48 @@
     </div>
 </div>
 
+<!-- Bulk add students modal -->
+<div id="bulkModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-2.5">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/></svg></span>
+                <h2 class="section-title text-sm">Bulk add students (CSV)</h2>
+            </div>
+            <button onclick="document.getElementById('bulkModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">
+            CSV columns:
+            <span class="font-mono text-blue-300">name, roll_number, class_name, house_name</span>.
+            Duplicate roll numbers are skipped automatically.
+        </p>
+        <a href="/students/template" hx-boost="false" download
+            class="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:underline no-underline mb-4">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+            Download sample template
+        </a>
+        <form method="POST" action="/students/import" enctype="multipart/form-data" hx-boost="false" class="space-y-4">
+            <div>
+                <label class="form-label">Select CSV file</label>
+                <input type="file" name="csv_file" accept=".csv" required class="form-input">
+            </div>
+            <div class="flex gap-3 pt-1">
+                <button type="submit" class="btn-primary flex-1">Import students</button>
+                <button type="button" onclick="document.getElementById('bulkModal').classList.add('hidden')" class="btn-secondary flex-1">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Edit student modal -->
 <div id="editModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
+    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
         <div class="flex items-center justify-between mb-5">
-            <h2 class="text-base font-semibold text-gray-800 dark:text-white">Edit student</h2>
-            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            <div class="flex items-center gap-2.5">
+                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+                <h2 class="section-title text-sm">Edit student</h2>
+            </div>
+            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
         </div>
         <form id="editForm" method="POST" action="" class="space-y-4" hx-boost="false">
             <div>
@@ -215,8 +331,8 @@ function setView(v) {
     currentView = v;
     document.getElementById('cardView').classList.toggle('hidden', v !== 'card');
     document.getElementById('tableView').classList.toggle('hidden', v !== 'table');
-    document.getElementById('btn-card').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='card' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
-    document.getElementById('btn-table').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='table' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400');
+    document.getElementById('btn-card').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='card' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400');
+    document.getElementById('btn-table').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='table' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400');
     doFilter();
 }
 
@@ -266,53 +382,58 @@ function doFilter() {
 
     if (currentView === 'card') {
         document.getElementById('cardView').innerHTML = filtered.map(s => `
-            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-4 transition-all duration-150 hover:-translate-y-px hover:border-slate-300 dark:hover:border-slate-500">
+            <div class="bg-slate-900/40 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.08)] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]">
                 <div class="flex items-center gap-2.5 mb-3">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style="background:${s.houseColor};">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style="background:${s.houseColor}; box-shadow:0 0 14px ${s.houseColor}55;">
                         ${initials(s.name)}
                     </div>
-                    <div>
-                        <div class="text-sm font-semibold text-gray-900 dark:text-white">${s.name}</div>
-                        <div class="text-[11px] text-gray-400 dark:text-gray-500">#${s.roll}</div>
+                    <div class="min-w-0">
+                        <div class="text-sm font-semibold text-white truncate">${s.name}</div>
+                        <div class="text-[11px] text-slate-400 num">#${s.roll}</div>
                     </div>
                 </div>
-                <div class="h-px bg-gray-50 dark:bg-slate-700/50 mb-2.5"></div>
+                <div class="h-px bg-white/10 mb-2.5"></div>
                 <div class="grid grid-cols-2 gap-1.5 mb-2.5">
                     <div>
-                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Class</div>
-                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mt-0.5">${s.cls}</div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">Class</div>
+                        <div class="text-xs font-medium text-slate-200 mt-0.5">${s.cls}</div>
                     </div>
                     <div>
-                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Grade</div>
-                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mt-0.5">${s.grade}</div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">Grade</div>
+                        <div class="text-xs font-medium text-slate-200 mt-0.5">${s.grade}</div>
                     </div>
                     <div class="col-span-2 mt-1">
-                        <div class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">House</div>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium mt-0.5 bg-gray-50 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300">
-                            <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${s.houseColor};"></span>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">House</div>
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium mt-1 bg-white/5 border border-white/10 text-slate-200">
+                            <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${s.houseColor}; box-shadow:0 0 5px ${s.houseColor};"></span>
                             ${s.house}
                         </span>
                     </div>
                 </div>
-                <div class="flex gap-1.5 pt-2.5 border-t border-gray-50 dark:border-slate-700/50">
+                <div class="flex gap-1.5 pt-2.5 border-t border-white/5">
                     <button onclick="openEdit('${s.id}','${s.name}','${s.roll}','${s.cls}','${s.houseId}')"
-                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors">Edit</button>
+                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors">Edit</button>
                     <button onclick="if(confirm('Delete ${s.name}?')) { document.getElementById('del-${s.id}').submit(); }"
-                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors">Delete</button>
+                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors">Delete</button>
                     <form id="del-${s.id}" method="POST" action="/students/delete/${s.id}" class="hidden"></form>
                 </div>
             </div>
-        `).join('') || '<div class="col-span-1 md:col-span-2 lg:col-span-4 text-center py-10 text-gray-400 dark:text-gray-500 text-sm">No students match your search</div>';
+        `).join('') || `
+            <div class="col-span-1 md:col-span-2 lg:col-span-4 flex flex-col items-center justify-center text-center py-14 px-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.02]">
+                <span class="icon-badge w-12 h-12 mb-3"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
+                <div class="text-sm font-medium text-slate-200">No students match your search</div>
+                <div class="text-xs text-slate-400 mt-1">Try a different name, roll number, house or grade.</div>
+            </div>`;
     } else {
         document.getElementById('tableBody').innerHTML = filtered.map(s => `
-            <tr class="border-b border-gray-100 dark:border-slate-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                <td class="table-cell font-medium">${s.name}</td>
-                <td class="table-cell">${s.roll}</td>
+            <tr class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer">
+                <td class="table-cell font-medium text-white">${s.name}</td>
+                <td class="table-cell num">${s.roll}</td>
                 <td class="table-cell">${s.cls}</td>
                 <td class="table-cell">${s.grade}</td>
                 <td class="table-cell">
                     <div class="flex items-center gap-1.5">
-                        <div class="w-2 h-2 rounded-full" style="background:${s.houseColor};"></div>
+                        <div class="w-2 h-2 rounded-full" style="background:${s.houseColor}; box-shadow:0 0 5px ${s.houseColor};"></div>
                         ${s.house}
                     </div>
                 </td>
@@ -326,7 +447,14 @@ function doFilter() {
                     </div>
                 </td>
             </tr>
-        `).join('') || '<tr><td colspan="6" class="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">No students match your search</td></tr>';
+        `).join('') || `
+            <tr><td colspan="6" class="py-12">
+                <div class="flex flex-col items-center justify-center text-center px-6">
+                    <span class="icon-badge w-12 h-12 mb-3"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
+                    <div class="text-sm font-medium text-slate-200">No students match your search</div>
+                    <div class="text-xs text-slate-400 mt-1">Try a different name, roll number, house or grade.</div>
+                </div>
+            </td></tr>`;
     }
 }
 

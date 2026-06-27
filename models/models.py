@@ -120,8 +120,20 @@ class Admin(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     email = Column(String(200), unique=True, nullable=False)
+    name = Column(String(200), nullable=True)
     password_hash = Column(Text, nullable=False)
     role = Column(String(20), default="admin")
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    admin_email = Column(String(200), nullable=True)
+    admin_name = Column(String(200), nullable=True)
+    action = Column(String(100), nullable=False)
+    detail = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 class SchoolClass(Base):
     __tablename__ = "school_classes"
@@ -137,6 +149,8 @@ class TermSettings(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     term_name = Column(String(100), nullable=False, default="Term 1")
+    academic_year = Column(String(20), nullable=True)
+    is_active = Column(Boolean, default=False)
     is_locked = Column(Boolean, default=False)
     locked_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

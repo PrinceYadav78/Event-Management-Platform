@@ -15,7 +15,7 @@ import shutil
 import uuid
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from templating import templates
 
 UPLOAD_DIR = "static/templates_upload"
 os.makedirs(UPLOAD_DIR, exist_ok=True)

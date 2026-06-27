@@ -18,9 +18,9 @@ templates = Jinja2Templates(directory="templates")
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-do-not-use-in-prod")
 ALGORITHM = "HS256"
 
-def create_token(email: str):
+def create_token(email: str, role: str = "admin", name: str = None):
     expire = datetime.utcnow() + timedelta(hours=8)
-    return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": email, "role": role, "name": name, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 def verify_token(request: Request):
     token = request.cookies.get("access_token")
@@ -45,7 +45,7 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
         return templates.TemplateResponse(request, "admin/login.html", {
             "error": "Invalid email or password"})
     response = RedirectResponse(url="/dashboard", status_code=303)
-    response.set_cookie("access_token", create_token(email), httponly=True)
+    response.set_cookie("access_token", create_token(email, admin.role, admin.name), httponly=True)
     return response
 
 @router.get("/logout")

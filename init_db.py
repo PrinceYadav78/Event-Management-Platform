@@ -1,6 +1,7 @@
 from database import SessionLocal
-from models.models import House, PointsConfig, Admin, SchoolClass
+from models.models import House, PointsConfig, Admin, SchoolClass, TermSettings
 from models.models import get_grade_group
+from terms import default_academic_year
 import bcrypt
 
 def hash_password(password: str) -> str:
@@ -13,6 +14,21 @@ def init_db():
     try:
         try:
             db.execute(text("ALTER TABLE events ADD COLUMN status VARCHAR(20) DEFAULT 'upcoming'"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute(text("ALTER TABLE admins ADD COLUMN name VARCHAR(200)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute(text("ALTER TABLE term_settings ADD COLUMN academic_year VARCHAR(20)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute(text("ALTER TABLE term_settings ADD COLUMN is_active BOOLEAN DEFAULT 0"))
             db.commit()
         except Exception:
             db.rollback()
@@ -39,10 +55,21 @@ def init_db():
         if db.query(Admin).count() == 0:
             admin = Admin(
                 email="admin@nps.com",
+                name="Super Admin",
                 password_hash=hash_password("admin123"),
                 role="super_admin"
             )
             db.add(admin)
+            db.commit()
+
+        # Backfill a friendly name for any super-admin that lacks one.
+        missing = db.query(Admin).filter(
+            Admin.role == "super_admin",
+            (Admin.name == None) | (Admin.name == "")  # noqa: E711
+        ).all()
+        if missing:
+            for a in missing:
+                a.name = "Super Admin"
             db.commit()
 
         if db.query(SchoolClass).count() == 0:
@@ -71,6 +98,19 @@ def init_db():
                         grade_group=get_grade_group(class_name)
                     ))
             db.add_all(classes)
+            db.commit()
+
+        # Ensure there is a term, and exactly one active term (fixes term lock,
+        # which previously did nothing because no term row existed).
+        if db.query(TermSettings).count() == 0:
+            db.add(TermSettings(term_name="Term 1", academic_year=default_academic_year(),
+                                is_active=True, is_locked=False))
+            db.commit()
+        elif db.query(TermSettings).filter(TermSettings.is_active == True).count() == 0:  # noqa: E712
+            t = db.query(TermSettings).first()
+            t.is_active = True
+            if not t.academic_year:
+                t.academic_year = default_academic_year()
             db.commit()
 
     finally:

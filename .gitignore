@@ -4,3 +4,8 @@ __pycache__/
 school_events.db
 
 tailwindcss.exe
+
+# Firebase service-account private keys — NEVER commit these
+*-firebase-adminsdk-*.json
+firebase-key.json
+serviceAccount*.json

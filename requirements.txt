@@ -8,3 +8,6 @@ bcrypt
 psycopg2-binary
 python-dotenv
 reportlab
+python-docx
+firebase-admin
+google-cloud-firestore

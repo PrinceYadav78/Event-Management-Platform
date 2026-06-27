@@ -1,66 +1,32 @@
+"""Local SQLite mirror of the Firestore database.
+
+Firestore is the source of truth (see firestore_sync.py): this SQLite file is
+rebuilt from Firestore on startup and every change is written back to Firestore.
+It is kept purely so the app's existing relational queries (joins, house-point
+aggregation, cascade deletes) keep working unchanged.
+"""
 import os
-import time
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+from dotenv import load_dotenv
 
 load_dotenv()
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./school_events.db")
+# Local mirror file. Override with MIRROR_DATABASE_URL if you want it elsewhere.
+MIRROR_DATABASE_URL = os.getenv("MIRROR_DATABASE_URL", "sqlite:///./school_events.db")
 
-# How many times to retry a failed connection, and how long to wait between tries.
-# This makes the app resilient to transient DNS / network hiccups when reaching the
-# cloud (Neon) database, or to the database briefly waking from auto-suspend.
-DB_CONNECT_RETRIES = 4
-DB_CONNECT_RETRY_DELAY = 1.5  # seconds
-
-
-def _connect_with_retry(connect_fn):
-    """Open a DBAPI connection, retrying on transient errors (e.g. DNS failures)."""
-    last_exc = None
-    for attempt in range(1, DB_CONNECT_RETRIES + 1):
-        try:
-            return connect_fn()
-        except Exception as exc:  # psycopg2.OperationalError, socket errors, etc.
-            last_exc = exc
-            if attempt == DB_CONNECT_RETRIES:
-                break
-            print(
-                f"[database] connection attempt {attempt}/{DB_CONNECT_RETRIES} failed: "
-                f"{exc!s} -- retrying in {DB_CONNECT_RETRY_DELAY}s"
-            )
-            time.sleep(DB_CONNECT_RETRY_DELAY)
-    # All attempts exhausted; re-raise the last error so the request still 500s cleanly.
-    raise last_exc
-
-
-if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
-    import psycopg2
-
-    # A valid SQLAlchemy postgres URL is also a valid libpq connection URI,
-    # so we can hand it straight to psycopg2.connect inside the retry wrapper.
-    def _pg_creator():
-        return _connect_with_retry(lambda: psycopg2.connect(SQLALCHEMY_DATABASE_URL))
-
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        creator=_pg_creator,
-        poolclass=NullPool,
-        pool_pre_ping=True,
-    )
-else:
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        connect_args={"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
-    )
+engine = create_engine(
+    MIRROR_DATABASE_URL,
+    # timeout lets concurrent writers (e.g. the real-time listener thread) wait
+    # on the lock instead of erroring with "database is locked".
+    connect_args={"check_same_thread": False, "timeout": 20} if MIRROR_DATABASE_URL.startswith("sqlite") else {},
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
