@@ -7,12 +7,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}National Public School{% endblock %}</title>
     <link href="/static/css/output.css" rel="stylesheet">
-    <!-- 3D integration scripts -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
-    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.0.51/build/spline-viewer.js"></script>
+    <!-- 3D integration scripts (served locally to avoid CDN/network dependency) -->
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/vanilla-tilt.min.js"></script>
+    <script type="module" src="/static/js/spline-viewer.js"></script>
 
-
+    <style>
         /* 3D Page Entrance Animation */
         @keyframes flip-in-3d {
             0% { transform: perspective(1200px) rotateX(15deg) translateY(40px) scale(0.95); opacity: 0; }
@@ -56,7 +56,7 @@
 
     <!-- 3D Spline Background (Preserved seamlessly across page clicks!) -->
     <div id="spline-dashboard-bg" hx-preserve="true" class="absolute inset-0 z-0 overflow-hidden pointer-events-auto">
-        <spline-viewer url="https://prod.spline.design/6Wq1Q7YGyM-iab9i/scene.splinecode"
+        <spline-viewer url="/static/spline/scene.splinecode"
             style="width: 100%; height: 100%;"></spline-viewer>
     </div>
 
