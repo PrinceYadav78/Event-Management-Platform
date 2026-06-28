@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Integer, Boolean, Date, Text, DateTime, F
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
+import datetime
 import uuid
 
 def generate_uuid():
@@ -62,7 +63,7 @@ class Student(Base):
     class_name = Column(String(10), nullable=False, index=True)
     grade_group = Column(String(20), nullable=False, index=True)
     house_id = Column(String, ForeignKey("houses.id"), nullable=False, index=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 
     house = relationship("House", back_populates="students")
     participations = relationship("EventParticipant", back_populates="student", cascade="all, delete-orphan")
@@ -79,7 +80,7 @@ class Event(Base):
     status = Column(String(20), default="upcoming")
     is_completed = Column(Boolean, default=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
 
@@ -113,7 +114,7 @@ class CertificateTemplate(Base):
     title_text = Column(String(200), default="Certificate of Achievement")
     body_text = Column(Text, default="This is to certify that {name} has won {position} place in {event}")
     font_family = Column(String(50), default="Helvetica")
-    updated_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -123,7 +124,7 @@ class Admin(Base):
     name = Column(String(200), nullable=True)
     password_hash = Column(Text, nullable=False)
     role = Column(String(20), default="admin")
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 
 
 class AuditLog(Base):
@@ -139,7 +140,7 @@ class AuditLog(Base):
     undo_type = Column(String(50), nullable=True)   # e.g. "student", "event", "class", "house"
     undo_data = Column(Text, nullable=True)         # JSON snapshot
     undone = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now(), index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), index=True)
 class AppConfig(Base):
     __tablename__ = "app_config"
 
@@ -154,7 +155,7 @@ class SchoolClass(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     class_name = Column(String(20), unique=True, nullable=False)
     grade_group = Column(String(20), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 
 
 class TermSettings(Base):
@@ -166,7 +167,7 @@ class TermSettings(Base):
     is_active = Column(Boolean, default=False)
     is_locked = Column(Boolean, default=False)
     locked_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())
 class CustomTemplate(Base):
     __tablename__ = "custom_templates"
 
@@ -205,4 +206,4 @@ class CustomTemplate(Base):
     date_font_size = Column(Integer, default=14)
     date_color = Column(String(20), default="#6b7280")
 
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now())

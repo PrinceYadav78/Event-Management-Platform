@@ -123,27 +123,14 @@ class suppress_sync:
 
 
 # --------------------------------------------------------------------------- #
-# Capture changed rows during flush, push them to Firestore on commit.
+# Atomic write-through. On flush we push the changed rows to Firestore BEFORE the
+# local commit is finalised. If the push fails we RAISE, which aborts the whole
+# commit — so nothing is half-saved locally and the admin gets a clear
+# "couldn't save, try again" error (clean retry, no duplicate). On success the
+# local commit proceeds and we bump the live version so other browsers refresh.
 # --------------------------------------------------------------------------- #
-@event.listens_for(Session, "after_flush")
-def _capture(session, flush_context):
-    if _suppressed():
-        return
-    pend = session.info.setdefault("_fs", {"upsert": [], "delete": []})
-    for obj in session.new:
-        if type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None:
-            pend["upsert"].append((type(obj), str(obj.id)))
-    for obj in session.dirty:
-        if (type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None
-                and session.is_modified(obj, include_collections=False)):
-            pend["upsert"].append((type(obj), str(obj.id)))
-    for obj in session.deleted:
-        if type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None:
-            pend["delete"].append((type(obj).__tablename__, str(obj.id)))
-
-
-# Set when a push fails — the next successful commit reconciles the whole state.
-_unsynced = False
+class SyncError(Exception):
+    """Raised when a change can't be written to Firestore — aborts the commit."""
 
 
 def _commit_with_retry(batch, attempts=3):
@@ -158,57 +145,56 @@ def _commit_with_retry(batch, attempts=3):
     raise last
 
 
-@event.listens_for(Session, "after_commit")
-def _push_to_firestore(session):
-    """Write just-committed changes to Firestore SYNCHRONOUSLY, with retry + reconcile."""
-    global _unsynced
-    pend = session.info.pop("_fs", None)
-    if _suppressed() or (not pend and not _unsynced):
+@event.listens_for(Session, "after_flush")
+def _push_on_flush(session, flush_context):
+    if _suppressed():
+        return
+    upserts, deletes, seen = [], [], set()
+    for obj in session.new:
+        if type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None:
+            key = (type(obj).__tablename__, str(obj.id))
+            if key not in seen:
+                seen.add(key); upserts.append((key[0], key[1], row_to_dict(obj)))
+    for obj in session.dirty:
+        if (type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None
+                and session.is_modified(obj, include_collections=False)):
+            key = (type(obj).__tablename__, str(obj.id))
+            if key not in seen:
+                seen.add(key); upserts.append((key[0], key[1], row_to_dict(obj)))
+    for obj in session.deleted:
+        if type(obj) in _MODEL_SET and getattr(obj, "id", None) is not None:
+            deletes.append((type(obj).__tablename__, str(obj.id)))
+    if not upserts and not deletes:
         return
     try:
-        # If an earlier push failed, re-push the entire local state to catch up.
-        if _unsynced:
-            full_sync_to_firestore()
-            _unsynced = False
-        if pend:
-            fs = get_client()
-            batch = fs.batch()
-            n = 0
-            seen = set()
-            db2 = SessionLocal()
-            try:
-                for Model, doc_id in pend["upsert"]:
-                    key = (Model.__tablename__, doc_id)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    row = db2.query(Model).filter(Model.id == doc_id).first()
-                    if row is None:
-                        continue
-                    batch.set(fs.collection(Model.__tablename__).document(doc_id), row_to_dict(row))
-                    n += 1
-                    if n >= _BATCH_LIMIT:
-                        _commit_with_retry(batch); batch = fs.batch(); n = 0
-                for table, doc_id in pend["delete"]:
-                    batch.delete(fs.collection(table).document(doc_id))
-                    n += 1
-                    if n >= _BATCH_LIMIT:
-                        _commit_with_retry(batch); batch = fs.batch(); n = 0
-            finally:
-                db2.close()
-            if n:
-                _commit_with_retry(batch)
+        fs = get_client()
+        batch = fs.batch(); n = 0
+        for table, doc_id, data in upserts:
+            batch.set(fs.collection(table).document(doc_id), data); n += 1
+            if n >= _BATCH_LIMIT:
+                _commit_with_retry(batch); batch = fs.batch(); n = 0
+        for table, doc_id in deletes:
+            batch.delete(fs.collection(table).document(doc_id)); n += 1
+            if n >= _BATCH_LIMIT:
+                _commit_with_retry(batch); batch = fs.batch(); n = 0
+        if n:
+            _commit_with_retry(batch)
     except Exception as e:
-        _unsynced = True  # reconcile on the next change
-        print("[firestore] write failed (kept locally, will reconcile on next change):", e)
-    # Notify connected browsers (SSE) that data changed — even if the Firestore
-    # push failed, the change IS in the shared local mirror.
-    live.bump()
+        # Abort the commit so the local mirror is NOT changed — nothing half-saved.
+        raise SyncError(str(e))
+    session.info["_changed"] = True
+
+
+@event.listens_for(Session, "after_commit")
+def _after_commit(session):
+    # Local commit succeeded and Firestore already has it — tell browsers to refresh.
+    if session.info.pop("_changed", False):
+        live.bump()
 
 
 @event.listens_for(Session, "after_rollback")
 def _discard(session):
-    session.info.pop("_fs", None)
+    session.info.pop("_changed", None)
 
 
 # --------------------------------------------------------------------------- #

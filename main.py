@@ -11,7 +11,7 @@ from routers import events, students, houses, certificates, auth, dashboard, set
 from init_db import init_db
 # Importing firestore_sync registers the SQLAlchemy commit hooks that push each
 # individual change to Firestore synchronously (see firestore_sync.py).
-from firestore_sync import hydrate_from_firestore
+from firestore_sync import hydrate_from_firestore, SyncError
 from csrf import csrf_protect, new_token
 import live
 import realtime
@@ -73,6 +73,17 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "msg": (exc.detail if exc.status_code == 403 else "That page doesn't exist."),
         }, status_code=exc.status_code)
     return HTMLResponse(str(exc.detail), status_code=exc.status_code)
+
+
+@app.exception_handler(SyncError)
+async def sync_error_handler(request: Request, exc: SyncError):
+    # The change could NOT be written to the cloud database, so it was rolled back
+    # (nothing was saved). Tell the admin so they can simply try again.
+    return templates.TemplateResponse(request, "error.html", {
+        "code": "!",
+        "title": "Couldn't save — cloud database unreachable",
+        "msg": "Your change was NOT saved. Check your connection and try again in a moment.",
+    }, status_code=503)
 
 
 @app.exception_handler(Exception)
