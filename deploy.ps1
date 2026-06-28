@@ -19,6 +19,11 @@ $PROJECT = "key-period-473405-g2"
 $REGION  = "asia-south1"                 # Mumbai — low latency for India
 $REPO    = "nps"
 $SERVICE = "nps-events"
+# CPU always-allocated = most reliable real-time (listeners run between requests).
+# New-project regions like Mumbai often reject it with a quota error -> set $false
+# to deploy there now (real-time still works while admins are actively connected).
+# After a quota increase is approved, set $true and redeploy.
+$ALWAYS_ON = $false
 $KEYFILE = "key-period-473405-g2-firebase-adminsdk-fbsvc-2d943f120e.json"
 $REGHOST = "$REGION-docker.pkg.dev"
 $IMAGE   = "$REGHOST/$PROJECT/$REPO/$SERVICE"
@@ -92,16 +97,9 @@ docker push $FULL; CheckExit "docker push"
 
 # ---- deploy ----
 Step "Deploying to Cloud Run"
-gcloud run deploy $SERVICE `
-  --image $FULL `
-  --region $REGION `
-  --allow-unauthenticated `
-  --min-instances 0 --max-instances 1 `
-  --no-cpu-throttling `
-  --concurrency 250 --timeout 3600 `
-  --memory 512Mi --cpu 1 `
-  --set-env-vars "WEB_CONCURRENCY=1,COOKIE_SECURE=true" `
-  --set-secrets "SECRET_KEY=app-secret-key:latest,FIREBASE_KEY_JSON=firebase-key:latest"
+$cpuFlag = if ($ALWAYS_ON) { "--no-cpu-throttling" } else { "--cpu-throttling" }
+Write-Host "   CPU mode: $cpuFlag"
+gcloud run deploy $SERVICE --image $FULL --region $REGION --allow-unauthenticated --min-instances 0 --max-instances 1 $cpuFlag --concurrency 250 --timeout 3600 --memory 512Mi --cpu 1 --set-env-vars "WEB_CONCURRENCY=1,COOKIE_SECURE=true" --set-secrets "SECRET_KEY=app-secret-key:latest,FIREBASE_KEY_JSON=firebase-key:latest"
 CheckExit "cloud run deploy"
 
 # ---- done ----
