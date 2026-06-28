@@ -324,6 +324,36 @@
         document.body.addEventListener('htmx:configRequest', function (e) {
             e.detail.headers['X-CSRF-Token'] = getCookie('csrf_token');
         });
+
+        // ---- Real-time: refresh the current view when ANY admin (or a Firebase
+        //      console edit) changes data. Won't interrupt you mid-edit. ----
+        (function () {
+            if (!window.EventSource) return;
+            var changed = false, first = true, busy = false;
+            function safe() {
+                if (document.querySelector('[id$="Modal"]:not(.hidden)')) return false;  // a dialog is open
+                var ae = document.activeElement;
+                if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return false; // typing
+                return true;
+            }
+            function maybeRefresh() {
+                if (!changed || busy || !safe()) return;
+                changed = false; busy = true;
+                try {
+                    if (window.htmx) {
+                        htmx.ajax('GET', location.pathname + location.search, { target: '#main-content', select: '#main-content' });
+                    } else { location.reload(); }
+                } catch (e) { }
+                setTimeout(function () { busy = false; }, 1200);
+            }
+            var es = new EventSource('/realtime/stream');
+            es.onmessage = function () {
+                if (first) { first = false; return; }   // ignore the initial version
+                changed = true; maybeRefresh();
+            };
+            es.onerror = function () { /* EventSource auto-reconnects (retry) */ };
+            setInterval(maybeRefresh, 1000);             // catch up once you stop typing / close a dialog
+        }());
     </script>
 </body>
 

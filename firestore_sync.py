@@ -17,6 +17,7 @@ import time
 from sqlalchemy import Date, DateTime, event
 from sqlalchemy.orm import Session
 
+import live
 from database import SessionLocal
 from firestore_db import get_client
 from models.models import (
@@ -200,6 +201,9 @@ def _push_to_firestore(session):
     except Exception as e:
         _unsynced = True  # reconcile on the next change
         print("[firestore] write failed (kept locally, will reconcile on next change):", e)
+    # Notify connected browsers (SSE) that data changed — even if the Firestore
+    # push failed, the change IS in the shared local mirror.
+    live.bump()
 
 
 @event.listens_for(Session, "after_rollback")

@@ -1,8 +1,9 @@
 import os
+import asyncio
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, StreamingResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from database import engine, Base, get_db
 from models import models
@@ -12,6 +13,8 @@ from init_db import init_db
 # individual change to Firestore synchronously (see firestore_sync.py).
 from firestore_sync import hydrate_from_firestore
 from csrf import csrf_protect, new_token
+import live
+import realtime
 
 Base.metadata.create_all(bind=engine)
 
@@ -101,6 +104,56 @@ async def startup_event():
     except Exception as e:
         print("[firestore] hydrate failed (using existing local data):", e)
     init_db()
+
+    # Real-time: listen for external/console edits and stream changes to browsers.
+    try:
+        realtime.start_listeners()
+    except Exception as e:
+        print("[realtime] could not start listeners (live updates disabled):", e)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        realtime.stop_listeners()
+    except Exception:
+        pass
+
+
+@app.get("/realtime/stream")
+async def realtime_stream(request: Request):
+    """Server-Sent Events: pushes a tick whenever the data changes so the browser
+    can refresh. Auth required; only emits a counter, never data."""
+    from routers.auth import verify_token
+    if not verify_token(request):
+        return Response(status_code=401)
+
+    async def gen():
+        last = live.get_version()
+        yield "retry: 3000\n\n"           # tell EventSource to reconnect after 3s
+        yield f"data: {last}\n\n"          # initial (browser ignores the first)
+        idle = 0
+        while True:
+            if await request.is_disconnected():
+                break
+            cur = live.get_version()
+            if cur != last:
+                last = cur
+                idle = 0
+                yield f"data: {cur}\n\n"
+            else:
+                idle += 1
+                if idle >= 30:             # ~15s heartbeat keeps proxies from closing
+                    idle = 0
+                    yield ": ping\n\n"
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    })
+
 
 @app.get("/")
 async def root(request: Request):
