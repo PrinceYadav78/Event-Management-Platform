@@ -48,9 +48,10 @@ CheckExit "enable services"
 
 # ---- Artifact Registry repo (create if missing) ----
 Step "Ensuring Artifact Registry repo '$REPO' exists"
-$repos = (gcloud artifacts repositories list --location=$REGION --format="value(name)" 2>$null)
-if ($repos -notmatch "/$REPO$" -and $repos -notmatch "\b$REPO\b") {
-    gcloud artifacts repositories create $REPO --repository-format=docker --location=$REGION --description="NPS events app" 2>$null
+gcloud artifacts repositories describe $REPO --location=$REGION *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "   creating repo '$REPO'..."
+    gcloud artifacts repositories create $REPO --repository-format=docker --location=$REGION --description="NPS events app"
     CheckExit "create repo"
 } else { Write-Host "   already exists" }
 
@@ -60,16 +61,17 @@ gcloud auth configure-docker $REGHOST --quiet 2>$null; CheckExit "configure-dock
 
 # ---- secrets (create if missing) ----
 Step "Ensuring secrets exist"
-$secrets = (gcloud secrets list --format="value(name)" 2>$null)
-if ($secrets -notmatch "firebase-key") {
-    gcloud secrets create firebase-key --data-file=$KEYFILE 2>$null; CheckExit "create firebase-key"
+gcloud secrets describe firebase-key *> $null
+if ($LASTEXITCODE -ne 0) {
+    gcloud secrets create firebase-key --data-file=$KEYFILE; CheckExit "create firebase-key"
     Write-Host "   created secret: firebase-key"
 } else { Write-Host "   firebase-key exists" }
-if ($secrets -notmatch "app-secret-key") {
+gcloud secrets describe app-secret-key *> $null
+if ($LASTEXITCODE -ne 0) {
     $sk  = ([guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N"))   # 64 hex chars
     $tmp = New-TemporaryFile
     [IO.File]::WriteAllText($tmp, $sk)
-    gcloud secrets create app-secret-key --data-file=$tmp 2>$null
+    gcloud secrets create app-secret-key --data-file=$tmp
     $rc = $LASTEXITCODE; Remove-Item $tmp -Force
     if ($rc -ne 0) { Die "create app-secret-key" }
     Write-Host "   created secret: app-secret-key"

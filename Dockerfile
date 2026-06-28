@@ -16,4 +16,5 @@ COPY . .
 
 # The SQLite mirror requires a single process — uvicorn runs one worker by default.
 # Cloud Run routes traffic to $PORT (8080 by default); bind uvicorn to it.
-CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+# (sh -c so $PORT expands; JSON form keeps Docker's signal handling happy.)
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
