@@ -16,9 +16,7 @@ $ErrorActionPreference = "Continue"
 
 # ---- settings (change REGION if you like) ----
 $PROJECT = "key-period-473405-g2"
-$REGION  = "us-central1"                 # Iowa — most reliable region for new projects
-# (asia-south1 / Mumbai gives lower latency in India but new projects often hit a
-#  "failed to initialize in this region" quota error there; switch back later if you like.)
+$REGION  = "asia-south1"                 # Mumbai — low latency for India
 $REPO    = "nps"
 $SERVICE = "nps-events"
 $KEYFILE = "key-period-473405-g2-firebase-adminsdk-fbsvc-2d943f120e.json"
