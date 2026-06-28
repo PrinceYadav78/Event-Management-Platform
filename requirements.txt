@@ -11,3 +11,4 @@ reportlab
 python-docx
 firebase-admin
 google-cloud-firestore
+google-cloud-storage
