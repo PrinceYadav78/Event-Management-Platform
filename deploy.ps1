@@ -10,7 +10,9 @@
 #     .\deploy.ps1
 # =====================================================================
 
-$ErrorActionPreference = "Stop"
+# NOTE: gcloud/docker print normal status to stderr; "Stop" would mistake that
+# for a fatal error. We use "Continue" and check real failures via $LASTEXITCODE.
+$ErrorActionPreference = "Continue"
 
 # ---- settings (change REGION if you like) ----
 $PROJECT = "key-period-473405-g2"
