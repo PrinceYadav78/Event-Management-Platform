@@ -99,7 +99,7 @@ docker push $FULL; CheckExit "docker push"
 Step "Deploying to Cloud Run"
 $cpuFlag = if ($ALWAYS_ON) { "--no-cpu-throttling" } else { "--cpu-throttling" }
 Write-Host "   CPU mode: $cpuFlag"
-gcloud run deploy $SERVICE --image $FULL --region $REGION --allow-unauthenticated --min-instances 0 --max-instances 1 $cpuFlag --concurrency 250 --timeout 3600 --memory 512Mi --cpu 1 --set-env-vars "WEB_CONCURRENCY=1,COOKIE_SECURE=true" --set-secrets "SECRET_KEY=app-secret-key:latest,FIREBASE_KEY_JSON=firebase-key:latest"
+gcloud run deploy $SERVICE --image $FULL --region $REGION --allow-unauthenticated --min-instances 0 --max-instances 1 $cpuFlag --execution-environment gen1 --concurrency 250 --timeout 3600 --memory 1Gi --cpu 1 --set-env-vars "WEB_CONCURRENCY=1,COOKIE_SECURE=true" --set-secrets "SECRET_KEY=app-secret-key:latest,FIREBASE_KEY_JSON=firebase-key:latest"
 CheckExit "cloud run deploy"
 
 # ---- done ----
