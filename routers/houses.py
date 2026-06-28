@@ -8,7 +8,7 @@ from routers.auth import verify_token, verify_password
 
 router = APIRouter()
 from templating import templates
-from audit import log_action
+from audit import log_action, snapshot_house
 
 @router.get("/houses", response_class=HTMLResponse)
 async def houses_page(request: Request, db: Session = Depends(get_db)):
@@ -75,9 +75,11 @@ async def delete_house(house_id: str, request: Request, db: Session = Depends(ge
         if db.query(Student).filter(Student.house_id == house_id).count() > 0:
             return RedirectResponse(url="/houses/manage?msg=has_students", status_code=303)
         _name = house.name
+        snap = snapshot_house(house)
         db.delete(house)
         db.commit()
-        log_action(db, request, "Deleted house", _name)
+        log_action(db, request, "Deleted house", _name,
+                   undo_type="house", undo_data=snap)
     return RedirectResponse(url="/houses/manage?msg=deleted", status_code=303)
 
 

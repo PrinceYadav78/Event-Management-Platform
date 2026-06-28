@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ code }} - National Public School</title>
+    <link href="/static/css/output.css" rel="stylesheet">
+</head>
+
+<body class="bg-slate-950 min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-sans text-slate-100">
+    <div class="cine-bg" aria-hidden="true">
+        <div class="cine-parallax" id="cineParallax">
+            <div class="cine-orb cine-orb-1"></div>
+            <div class="cine-orb cine-orb-2"></div>
+            <div class="cine-orb cine-orb-3"></div>
+        </div>
+        <div class="cine-spot" id="cineSpot"></div>
+        <div class="cine-vignette"></div>
+    </div>
+
+    <div class="relative z-10 text-center glass-panel p-10 max-w-md">
+        <div class="text-[64px] font-bold text-white leading-none num drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">{{ code }}</div>
+        <div class="text-lg font-semibold text-white mt-3">{{ title }}</div>
+        <p class="text-sm text-slate-400 mt-2">{{ msg }}</p>
+        <a href="/dashboard" class="btn-primary no-underline inline-flex mt-6">Back to dashboard</a>
+    </div>
+
+    <script>
+        (function () {
+            var spot = document.getElementById('cineSpot'), par = document.getElementById('cineParallax');
+            var tx = 0, ty = 0, cx = 0, cy = 0;
+            window.addEventListener('mousemove', function (e) {
+                if (spot) { spot.style.setProperty('--mx', e.clientX + 'px'); spot.style.setProperty('--my', e.clientY + 'px'); }
+                tx = (e.clientX / window.innerWidth - 0.5) * 40; ty = (e.clientY / window.innerHeight - 0.5) * 40;
+            }, { passive: true });
+            (function raf() { cx += (tx - cx) * 0.06; cy += (ty - cy) * 0.06; if (par) par.style.transform = 'translate(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px)'; requestAnimationFrame(raf); })();
+        }());
+    </script>
+</body>
+
+</html>

@@ -1,5 +1,5 @@
 from database import SessionLocal
-from models.models import House, PointsConfig, Admin, SchoolClass, TermSettings
+from models.models import House, PointsConfig, Admin, SchoolClass, TermSettings, AppConfig
 from models.models import get_grade_group
 from terms import default_academic_year
 import bcrypt
@@ -32,6 +32,21 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        try:
+            db.execute(text("ALTER TABLE custom_templates ADD COLUMN file_data TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        for col_sql in (
+            "ALTER TABLE audit_logs ADD COLUMN undo_type VARCHAR(50)",
+            "ALTER TABLE audit_logs ADD COLUMN undo_data TEXT",
+            "ALTER TABLE audit_logs ADD COLUMN undone BOOLEAN DEFAULT 0",
+        ):
+            try:
+                db.execute(text(col_sql))
+                db.commit()
+            except Exception:
+                db.rollback()
         if db.query(House).count() == 0:
             houses = [
                 House(name="Nicon",    color="#2563eb", total_points=0, primary_points=0, middle_points=0, senior_points=0),
@@ -111,6 +126,10 @@ def init_db():
             t.is_active = True
             if not t.academic_year:
                 t.academic_year = default_academic_year()
+            db.commit()
+
+        if db.query(AppConfig).count() == 0:
+            db.add(AppConfig(teachers_can_delete=False))
             db.commit()
 
     finally:

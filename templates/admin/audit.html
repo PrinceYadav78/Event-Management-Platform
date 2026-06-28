@@ -3,6 +3,18 @@
 {% block page_title %}Audit log{% endblock %}
 
 {% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% if msg %}
+<div id="toast" class="toast fixed top-4 right-4 z-50 {% if msg == 'ok' %}toast-success{% else %}toast-error{% endif %}">
+    {% if msg == 'ok' %}Action undone — the record was restored.
+    {% elif msg == 'already_undone' %}That action was already undone.
+    {% elif msg == 'exists' %}Can't restore — a record with the same id/name already exists.
+    {% elif msg == 'unsupported' %}This action can't be undone (only deletions are reversible).
+    {% elif msg == 'notfound' %}That log entry no longer exists.
+    {% else %}Undo failed — please try again.{% endif %}
+    <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
+</div>
+{% endif %}
 <div class="flex flex-col gap-5">
 
     <!-- Overview stat -->
@@ -36,6 +48,7 @@
                         <th class="table-header">Admin</th>
                         <th class="table-header">Action</th>
                         <th class="table-header">Detail</th>
+                        <th class="table-header text-right">Undo</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -48,6 +61,17 @@
                         </td>
                         <td class="table-cell"><span class="badge-blue whitespace-nowrap">{{ log.action }}</span></td>
                         <td class="table-cell text-slate-300">{{ log.detail }}</td>
+                        <td class="table-cell text-right whitespace-nowrap">
+                            {% if log.undone %}
+                            <span class="inline-flex items-center gap-1 text-[11px] text-emerald-400"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Restored</span>
+                            {% elif log.undo_type %}
+                            <form method="POST" action="/audit/undo/{{ log.id }}" hx-boost="false" class="inline" onsubmit="return confirm('Restore this deleted {{ log.undo_type }}?')">
+                                <button type="submit" class="py-1 px-2.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition-colors">Undo</button>
+                            </form>
+                            {% else %}
+                            <span class="text-slate-600 text-xs">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -64,4 +88,8 @@
         {% endif %}
     </div>
 </div>
+<script>
+    var toast = document.getElementById('toast');
+    if (toast) setTimeout(function () { toast.remove(); }, 4000);
+</script>
 {% endblock %}

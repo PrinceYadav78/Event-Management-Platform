@@ -3,32 +3,24 @@
 {% block page_title %}Students{% endblock %}
 
 {% block header_actions %}
-<button onclick="document.getElementById('addModal').classList.remove('hidden')"
-    class="btn-primary">
-    + Add student
-</button>
-<button onclick="document.getElementById('bulkModal').classList.remove('hidden')"
-    class="btn-secondary">
-    Bulk Add
-</button>
+<button onclick="document.getElementById('addModal').classList.remove('hidden')" class="btn-primary">+ Add student</button>
+<button onclick="document.getElementById('bulkModal').classList.remove('hidden')" class="btn-secondary">Bulk Add</button>
 {% endblock %}
 
 {% block content %}
 {% set msg = request.query_params.get('msg') %}
-{% set deleted_name = request.query_params.get('name') %}
-
 {% if msg %}
 <div id="toast" class="toast fixed top-4 right-4 z-50
-    {% if msg == 'deleted' %}toast-error
-    {% elif msg == 'restored' %}toast-success
+    {% if msg == 'deleted' or msg == 'dup_roll' or msg == 'no_delete' %}toast-error
     {% elif msg == 'locked' %}toast-warn
-    {% else %}toast-info{% endif %}">
-    {% if msg == 'deleted' %}Deleted {{ deleted_name }}. <span id="undo-countdown" class="text-xs opacity-60">(10s)</span>
-    {% elif msg == 'restored' %}Student restored successfully.
-    {% elif msg == 'locked' %}Term is locked. Unlock in Settings to make changes.
-    {% elif msg == 'edited' %}Student updated successfully.
+    {% else %}toast-success{% endif %}">
+    {% if msg == 'deleted' %}Student deleted.
+    {% elif msg == 'dup_roll' %}That roll number is already in use.
+    {% elif msg == 'no_delete' %}Only a super-admin can delete students.
+    {% elif msg == 'locked' %}Term is locked — changes are disabled.
+    {% elif msg == 'edited' %}Student updated.
     {% elif msg.startswith('import_done') %}{% set parts = msg.split('_') %}Imported {{ parts[2] }} students, skipped {{ parts[3] }}.
-    {% else %}Student added successfully.{% endif %}
+    {% else %}Student added.{% endif %}
     <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
 </div>
 {% endif %}
@@ -36,12 +28,11 @@
 <div class="space-y-5">
     <!-- Overview stat strip -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Total students -->
         <div class="stat-card">
             <div class="flex items-start justify-between">
                 <div>
                     <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Total students</div>
-                    <div class="text-[28px] font-bold text-white leading-none num">{{ students|length }}</div>
+                    <div class="text-[28px] font-bold text-white leading-none num">{{ total_all }}</div>
                     <div class="text-xs text-slate-400 mt-2">across <span class="num">{{ houses|length }}</span> houses</div>
                 </div>
                 <div class="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-300 shrink-0">
@@ -49,10 +40,6 @@
                 </div>
             </div>
         </div>
-        <!-- Grade groups -->
-        {% set primary_count = students|selectattr('grade_group', 'equalto', 'Primary')|list|length %}
-        {% set middle_count = students|selectattr('grade_group', 'equalto', 'Middle')|list|length %}
-        {% set senior_count = students|selectattr('grade_group', 'equalto', 'Senior')|list|length %}
         <div class="stat-card">
             <div class="flex items-start justify-between">
                 <div>
@@ -68,7 +55,6 @@
                 </div>
             </div>
         </div>
-        <!-- Houses -->
         <div class="stat-card">
             <div class="flex items-start justify-between">
                 <div>
@@ -81,11 +67,10 @@
                     </div>
                 </div>
                 <div class="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-400/25 flex items-center justify-center text-purple-300 shrink-0">
-                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
                 </div>
             </div>
         </div>
-        <!-- Classes -->
         <div class="stat-card">
             <div class="flex items-start justify-between">
                 <div>
@@ -100,95 +85,117 @@
         </div>
     </div>
 
-    <!-- Toolbar -->
+    <!-- Search & filter (server-side) -->
     <div class="card">
         <div class="flex items-center gap-2.5 mb-4">
-            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg></span>
-            <span class="section-title text-sm">Search & filter</span>
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
+            <span class="section-title text-sm">Search &amp; filter</span>
         </div>
-        <div class="flex flex-col md:flex-row gap-3 md:items-center mb-4">
-            <!-- Search -->
-            <div class="relative flex-1">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                <input type="text" id="searchBox" placeholder="Search name, roll number, class..."
-                    oninput="doFilter()"
-                    class="form-input !pl-9">
+        <form method="GET" action="/students" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <div class="lg:col-span-2">
+                <label class="form-label">Search</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="name, roll number or class…" class="form-input">
             </div>
-            <!-- Sort -->
-            <select id="sortSelect" onchange="doFilter()" class="form-input !w-full md:!w-44">
-                <option value="name">Name A–Z</option>
-                <option value="name-desc">Name Z–A</option>
-                <option value="roll">Roll number</option>
-                <option value="house">House</option>
-                <option value="class">Class</option>
-            </select>
-            <!-- View toggle -->
-            <div class="flex border border-white/10 rounded-xl overflow-hidden shrink-0 self-start md:self-auto">
-                <button id="btn-card" onclick="setView('card')"
-                    class="px-3 py-2 text-xs font-medium bg-[#1a2535] dark:bg-blue-600 text-white transition-all">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                </button>
-                <button id="btn-table" onclick="setView('table')"
-                    class="px-3 py-2 text-xs font-medium bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400 transition-all">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-                </button>
+            <div>
+                <label class="form-label">House</label>
+                <select name="house" class="form-input">
+                    <option value="">All houses</option>
+                    {% for h in houses %}<option value="{{ h.name }}" {% if h.name == f_house %}selected{% endif %}>{{ h.name }}</option>{% endfor %}
+                </select>
             </div>
-        </div>
-        <!-- House filters -->
-        <div class="flex items-center gap-2 flex-wrap mb-2.5">
-            <span class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mr-1">House</span>
-            <button class="filter-pill on" data-house="all" onclick="setHouse('all')">All houses</button>
-            {% for house in houses %}
-            <button class="filter-pill" data-house="{{ house.name }}" onclick="setHouse('{{ house.name }}')"
-                style="border-left:3px solid {{ house.color }};">
-                {{ house.name }}
-            </button>
-            {% endfor %}
-        </div>
-        <!-- Grade filters -->
-        <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mr-1">Grade</span>
-            <button class="filter-pill on" data-grade="all" onclick="setGrade('all')">All grades</button>
-            <button class="filter-pill" data-grade="Primary" onclick="setGrade('Primary')">Primary</button>
-            <button class="filter-pill" data-grade="Middle" onclick="setGrade('Middle')">Middle</button>
-            <button class="filter-pill" data-grade="Senior" onclick="setGrade('Senior')">Senior</button>
-        </div>
+            <div>
+                <label class="form-label">Grade</label>
+                <select name="grade" class="form-input">
+                    <option value="">All grades</option>
+                    {% for g in ['Primary','Middle','Senior'] %}<option value="{{ g }}" {% if g == f_grade %}selected{% endif %}>{{ g }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Sort</label>
+                <select name="sort" class="form-input">
+                    {% for val, lbl in [('name','Name A–Z'),('name-desc','Name Z–A'),('roll','Roll number'),('house','House'),('class','Class')] %}
+                    <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="flex items-center gap-2 lg:col-span-5">
+                <button type="submit" class="btn-primary">Apply</button>
+                {% if q or f_house or f_grade or sort != 'name' %}<a href="/students" class="btn-secondary no-underline">Clear</a>{% endif %}
+                <span class="text-xs text-slate-400 ml-auto num">{{ total }} result{{ '' if total == 1 else 's' }} · page {{ page }}/{{ pages }}</span>
+            </div>
+        </form>
     </div>
 
-    <div id="resultsCount" class="text-xs text-slate-400 px-1 num"></div>
-
-    <!-- Card view -->
-    <div id="cardView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
-
-    <!-- Table view -->
-    <div id="tableView" class="hidden bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-xl border border-white/10 overflow-hidden">
-        <table class="w-full" id="studentsTable">
-            <thead>
-                <tr>
-                    <th class="table-header">Name</th>
-                    <th class="table-header">Roll number</th>
-                    <th class="table-header">Class</th>
-                    <th class="table-header">Grade group</th>
-                    <th class="table-header">House</th>
-                    <th class="table-header">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+    <!-- Results -->
+    {% if students %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {% for s in students %}
+        {% set parts = s.name.split() %}
+        <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-white/10 p-4 transition-all duration-150 hover:-translate-y-px hover:border-white/20">
+            <div class="flex items-center gap-2.5 mb-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style="background:{{ s.house.color }};">{{ (parts[0][0] ~ (parts[-1][0] if parts|length > 1 else ''))|upper }}</div>
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">{{ s.name }}</div>
+                    <div class="text-[11px] text-slate-400 num">#{{ s.roll_number }}</div>
+                </div>
+            </div>
+            <div class="h-px bg-white/5 mb-2.5"></div>
+            <div class="grid grid-cols-2 gap-1.5 mb-2.5">
+                <div><div class="text-[10px] text-slate-500 uppercase tracking-wider">Class</div><div class="text-xs font-medium text-slate-200 mt-0.5">{{ s.class_name }}</div></div>
+                <div><div class="text-[10px] text-slate-500 uppercase tracking-wider">Grade</div><div class="text-xs font-medium text-slate-200 mt-0.5">{{ s.grade_group }}</div></div>
+                <div class="col-span-2 mt-1">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider">House</div>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium mt-0.5 bg-white/5 text-slate-200">
+                        <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:{{ s.house.color }};"></span>{{ s.house.name }}
+                    </span>
+                </div>
+            </div>
+            <div class="flex gap-1.5 pt-2.5 border-t border-white/5">
+                <button onclick="openEdit(this)" data-id="{{ s.id }}" data-name="{{ s.name }}" data-roll="{{ s.roll_number }}" data-cls="{{ s.class_name }}" data-house="{{ s.house_id }}"
+                    class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors">Edit</button>
+                <form method="POST" action="/students/delete/{{ s.id }}" hx-boost="false" class="flex-1" onsubmit="return confirm('Delete {{ s.name }}?')">
+                    <button type="submit" class="w-full py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-red-500/15 text-red-300 hover:bg-red-500/25 transition-colors">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
     </div>
+
+    <!-- Pagination -->
+    {% if pages > 1 %}
+    {% set base = '/students?q=' ~ q|urlencode ~ '&house=' ~ f_house|urlencode ~ '&grade=' ~ f_grade|urlencode ~ '&sort=' ~ sort|urlencode %}
+    {% set btn = 'min-w-9 h-9 px-2 inline-flex items-center justify-center rounded-lg text-xs font-medium border no-underline transition-colors' %}
+    <div class="flex items-center justify-center gap-1.5 flex-wrap">
+        {% if page > 1 %}<a href="{{ base }}&page={{ page - 1 }}" aria-label="Previous page" class="{{ btn }} bg-white/5 text-slate-300 border-white/10 hover:bg-white/10">←</a>{% endif %}
+        {% for p in range(1, pages + 1) %}
+            {% if p == 1 or p == pages or (p >= page - 2 and p <= page + 2) %}
+                {% if p == page %}
+                <span aria-current="page" class="{{ btn }} bg-blue-600 text-white border-blue-500 font-semibold num">{{ p }}</span>
+                {% else %}
+                <a href="{{ base }}&page={{ p }}" class="{{ btn }} bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 num">{{ p }}</a>
+                {% endif %}
+            {% elif p == page - 3 or p == page + 3 %}
+                <span class="px-1 text-slate-500">…</span>
+            {% endif %}
+        {% endfor %}
+        {% if page < pages %}<a href="{{ base }}&page={{ page + 1 }}" aria-label="Next page" class="{{ btn }} bg-white/5 text-slate-300 border-white/10 hover:bg-white/10">→</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card text-center py-12">
+        <p class="text-slate-300 text-sm font-medium">No students match your search</p>
+        <p class="text-slate-500 text-xs mt-1">Try clearing the filters, or add a student.</p>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Add student modal -->
-<div id="addModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
+<div id="addModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="glass-panel p-6 w-full max-w-md">
         <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-2.5">
-                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
-                <h2 class="section-title text-sm">Add new student</h2>
-            </div>
-            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
+            <h2 class="section-title text-sm">Add new student</h2>
+            <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-slate-400 hover:text-white bg-transparent border-none cursor-pointer">✕</button>
         </div>
-        <form method="POST" action="/students/add" class="space-y-4">
+        <form method="POST" action="/students/add" hx-boost="false" class="space-y-4">
             <div>
                 <label class="form-label">Full name</label>
                 <input type="text" name="name" required placeholder="e.g. Arjun Sharma" class="form-input">
@@ -200,20 +207,12 @@
                 </div>
                 <div>
                     <label class="form-label">Class</label>
-                    <select name="class_name" class="form-input">
-                        {% for c in classes %}
-                        <option value="{{ c.class_name }}">{{ c.class_name }}</option>
-                        {% endfor %}
-                    </select>
+                    <select name="class_name" class="form-input">{% for c in classes %}<option value="{{ c.class_name }}">{{ c.class_name }}</option>{% endfor %}</select>
                 </div>
             </div>
             <div>
                 <label class="form-label">House</label>
-                <select name="house_id" class="form-input">
-                    {% for house in houses %}
-                    <option value="{{ house.id }}">{{ house.name }}</option>
-                    {% endfor %}
-                </select>
+                <select name="house_id" class="form-input">{% for house in houses %}<option value="{{ house.id }}">{{ house.name }}</option>{% endfor %}</select>
             </div>
             <div class="flex gap-3 pt-2">
                 <button type="submit" class="btn-primary flex-1">Save student</button>
@@ -224,24 +223,15 @@
 </div>
 
 <!-- Bulk add students modal -->
-<div id="bulkModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
+<div id="bulkModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="glass-panel p-6 w-full max-w-md">
         <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-2.5">
-                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/></svg></span>
-                <h2 class="section-title text-sm">Bulk add students (CSV)</h2>
-            </div>
-            <button onclick="document.getElementById('bulkModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
+            <h2 class="section-title text-sm">Bulk add students (CSV)</h2>
+            <button onclick="document.getElementById('bulkModal').classList.add('hidden')" class="text-slate-400 hover:text-white bg-transparent border-none cursor-pointer">✕</button>
         </div>
-        <p class="text-xs text-slate-400 mb-3">
-            CSV columns:
-            <span class="font-mono text-blue-300">name, roll_number, class_name, house_name</span>.
-            Duplicate roll numbers are skipped automatically.
-        </p>
-        <a href="/students/template" hx-boost="false" download
-            class="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:underline no-underline mb-4">
-            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
-            Download sample template
+        <p class="text-xs text-slate-400 mb-3">CSV columns: <span class="font-mono text-blue-300">name, roll_number, class_name, house_name</span>. Duplicate roll numbers are skipped.</p>
+        <a href="/students/template" hx-boost="false" download class="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:underline no-underline mb-4">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>Download sample template
         </a>
         <form method="POST" action="/students/import" enctype="multipart/form-data" hx-boost="false" class="space-y-4">
             <div>
@@ -257,16 +247,13 @@
 </div>
 
 <!-- Edit student modal -->
-<div id="editModal" class="hidden fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl p-6 w-full max-w-md shadow-xl border border-white/10">
+<div id="editModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div class="glass-panel p-6 w-full max-w-md">
         <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-2.5">
-                <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
-                <h2 class="section-title text-sm">Edit student</h2>
-            </div>
-            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">✕</button>
+            <h2 class="section-title text-sm">Edit student</h2>
+            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-slate-400 hover:text-white bg-transparent border-none cursor-pointer">✕</button>
         </div>
-        <form id="editForm" method="POST" action="" class="space-y-4" hx-boost="false">
+        <form id="editForm" method="POST" action="" hx-boost="false" class="space-y-4">
             <div>
                 <label class="form-label">Full name</label>
                 <input type="text" id="editName" name="name" required class="form-input">
@@ -278,20 +265,12 @@
                 </div>
                 <div>
                     <label class="form-label">Class</label>
-                    <select id="editClass" name="class_name" class="form-input">
-                        {% for c in classes %}
-                        <option value="{{ c.class_name }}">{{ c.class_name }}</option>
-                        {% endfor %}
-                    </select>
+                    <select id="editClass" name="class_name" class="form-input">{% for c in classes %}<option value="{{ c.class_name }}">{{ c.class_name }}</option>{% endfor %}</select>
                 </div>
             </div>
             <div>
                 <label class="form-label">House</label>
-                <select id="editHouse" name="house_id" class="form-input">
-                    {% for house in houses %}
-                    <option value="{{ house.id }}">{{ house.name }}</option>
-                    {% endfor %}
-                </select>
+                <select id="editHouse" name="house_id" class="form-input">{% for house in houses %}<option value="{{ house.id }}">{{ house.name }}</option>{% endfor %}</select>
             </div>
             <div class="flex gap-3 pt-2">
                 <button type="submit" class="btn-primary flex-1">Save changes</button>
@@ -301,175 +280,17 @@
     </div>
 </div>
 
-
-
 <script>
-var allStudents = [
-    {% for student in students %}
-    {
-        id: "{{ student.id }}",
-        name: "{{ student.name }}",
-        roll: "{{ student.roll_number }}",
-        cls: "{{ student.class_name }}",
-        grade: "{{ student.grade_group }}",
-        house: "{{ student.house.name }}",
-        houseId: "{{ student.house_id }}",
-        houseColor: "{{ student.house.color }}"
-    },
-    {% endfor %}
-];
-
-var activeHouse = 'all';
-var activeGrade = 'all';
-var currentView = 'card';
-
-function initials(name) {
-    return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
-}
-
-function setView(v) {
-    currentView = v;
-    document.getElementById('cardView').classList.toggle('hidden', v !== 'card');
-    document.getElementById('tableView').classList.toggle('hidden', v !== 'table');
-    document.getElementById('btn-card').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='card' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400');
-    document.getElementById('btn-table').className = 'px-3 py-2 text-xs font-medium transition-all ' + (v==='table' ? 'bg-[#1a2535] dark:bg-blue-600 text-white' : 'bg-slate-900/60 backdrop-blur-2xl backdrop-saturate-150 text-gray-500 dark:text-gray-400');
-    doFilter();
-}
-
-function setHouse(h) {
-    activeHouse = h;
-    document.querySelectorAll('[data-house]').forEach(b => b.classList.toggle('on', b.dataset.house === h));
-    doFilter();
-}
-
-function setGrade(g) {
-    activeGrade = g;
-    document.querySelectorAll('[data-grade]').forEach(b => b.classList.toggle('on', b.dataset.grade === g));
-    doFilter();
-}
-
-function openEdit(id, name, roll, cls, houseId) {
-    document.getElementById('editForm').setAttribute('action', '/students/edit/' + id);
-    document.getElementById('editName').value = name;
-    document.getElementById('editRoll').value = roll;
-    document.getElementById('editClass').value = cls;
-    document.getElementById('editHouse').value = houseId;
-    document.getElementById('editModal').classList.remove('hidden');
-}
-
-function doFilter() {
-    var q = document.getElementById('searchBox').value.toLowerCase();
-    var sort = document.getElementById('sortSelect').value;
-
-    var filtered = allStudents.filter(s => {
-        const matchQ = !q || s.name.toLowerCase().includes(q) || s.roll.includes(q) || s.cls.toLowerCase().includes(q);
-        const matchH = activeHouse === 'all' || s.house === activeHouse;
-        const matchG = activeGrade === 'all' || s.grade === activeGrade;
-        return matchQ && matchH && matchG;
-    });
-
-    filtered.sort((a, b) => {
-        if (sort === 'name') return a.name.localeCompare(b.name);
-        if (sort === 'name-desc') return b.name.localeCompare(a.name);
-        if (sort === 'roll') return a.roll.localeCompare(b.roll);
-        if (sort === 'house') return a.house.localeCompare(b.house);
-        if (sort === 'class') return a.cls.localeCompare(b.cls);
-        return 0;
-    });
-
-    document.getElementById('resultsCount').textContent =
-        `Showing ${filtered.length} student${filtered.length !== 1 ? 's' : ''}`;
-
-    if (currentView === 'card') {
-        document.getElementById('cardView').innerHTML = filtered.map(s => `
-            <div class="bg-slate-900/40 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.08)] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]">
-                <div class="flex items-center gap-2.5 mb-3">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style="background:${s.houseColor}; box-shadow:0 0 14px ${s.houseColor}55;">
-                        ${initials(s.name)}
-                    </div>
-                    <div class="min-w-0">
-                        <div class="text-sm font-semibold text-white truncate">${s.name}</div>
-                        <div class="text-[11px] text-slate-400 num">#${s.roll}</div>
-                    </div>
-                </div>
-                <div class="h-px bg-white/10 mb-2.5"></div>
-                <div class="grid grid-cols-2 gap-1.5 mb-2.5">
-                    <div>
-                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">Class</div>
-                        <div class="text-xs font-medium text-slate-200 mt-0.5">${s.cls}</div>
-                    </div>
-                    <div>
-                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">Grade</div>
-                        <div class="text-xs font-medium text-slate-200 mt-0.5">${s.grade}</div>
-                    </div>
-                    <div class="col-span-2 mt-1">
-                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">House</div>
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium mt-1 bg-white/5 border border-white/10 text-slate-200">
-                            <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${s.houseColor}; box-shadow:0 0 5px ${s.houseColor};"></span>
-                            ${s.house}
-                        </span>
-                    </div>
-                </div>
-                <div class="flex gap-1.5 pt-2.5 border-t border-white/5">
-                    <button onclick="openEdit('${s.id}','${s.name}','${s.roll}','${s.cls}','${s.houseId}')"
-                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors">Edit</button>
-                    <button onclick="if(confirm('Delete ${s.name}?')) { document.getElementById('del-${s.id}').submit(); }"
-                        class="flex-1 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors">Delete</button>
-                    <form id="del-${s.id}" method="POST" action="/students/delete/${s.id}" class="hidden"></form>
-                </div>
-            </div>
-        `).join('') || `
-            <div class="col-span-1 md:col-span-2 lg:col-span-4 flex flex-col items-center justify-center text-center py-14 px-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.02]">
-                <span class="icon-badge w-12 h-12 mb-3"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
-                <div class="text-sm font-medium text-slate-200">No students match your search</div>
-                <div class="text-xs text-slate-400 mt-1">Try a different name, roll number, house or grade.</div>
-            </div>`;
-    } else {
-        document.getElementById('tableBody').innerHTML = filtered.map(s => `
-            <tr class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer">
-                <td class="table-cell font-medium text-white">${s.name}</td>
-                <td class="table-cell num">${s.roll}</td>
-                <td class="table-cell">${s.cls}</td>
-                <td class="table-cell">${s.grade}</td>
-                <td class="table-cell">
-                    <div class="flex items-center gap-1.5">
-                        <div class="w-2 h-2 rounded-full" style="background:${s.houseColor}; box-shadow:0 0 5px ${s.houseColor};"></div>
-                        ${s.house}
-                    </div>
-                </td>
-                <td class="table-cell">
-                    <div class="flex gap-2.5">
-                        <button onclick="openEdit('${s.id}','${s.name}','${s.roll}','${s.cls}','${s.houseId}')"
-                            class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer bg-transparent border-none hover:underline">Edit</button>
-                        <button onclick="if(confirm('Delete ${s.name}?')) { document.getElementById('del2-${s.id}').submit(); }"
-                            class="text-xs text-red-600 dark:text-red-400 cursor-pointer bg-transparent border-none hover:underline">Delete</button>
-                        <form id="del2-${s.id}" method="POST" action="/students/delete/${s.id}" class="hidden"></form>
-                    </div>
-                </td>
-            </tr>
-        `).join('') || `
-            <tr><td colspan="6" class="py-12">
-                <div class="flex flex-col items-center justify-center text-center px-6">
-                    <span class="icon-badge w-12 h-12 mb-3"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
-                    <div class="text-sm font-medium text-slate-200">No students match your search</div>
-                    <div class="text-xs text-slate-400 mt-1">Try a different name, roll number, house or grade.</div>
-                </div>
-            </td></tr>`;
+    function openEdit(btn) {
+        var f = document.getElementById('editForm');
+        f.action = '/students/edit/' + btn.dataset.id;
+        document.getElementById('editName').value = btn.dataset.name;
+        document.getElementById('editRoll').value = btn.dataset.roll;
+        document.getElementById('editClass').value = btn.dataset.cls;
+        document.getElementById('editHouse').value = btn.dataset.house;
+        document.getElementById('editModal').classList.remove('hidden');
     }
-}
-
-// Toast countdown
-var toast = document.getElementById('toast');
-if (toast) {
-    var seconds = 10;
-    var countdown = document.getElementById('undo-countdown');
-    var timer = setInterval(() => {
-        seconds--;
-        if (countdown) countdown.textContent = `(${seconds}s)`;
-        if (seconds <= 0) { clearInterval(timer); toast.remove(); }
-    }, 1000);
-}
-
-doFilter();
+    var toast = document.getElementById('toast');
+    if (toast) setTimeout(function () { toast.remove(); }, 4000);
 </script>
 {% endblock %}

@@ -1,35 +1,97 @@
+import os
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, HTMLResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from database import engine, Base, get_db
 from models import models
 from routers import events, students, houses, certificates, auth, dashboard, settings, admins, audit_log, account
 from init_db import init_db
 # Importing firestore_sync registers the SQLAlchemy commit hooks that push each
-# individual change to Firestore in the background (see firestore_sync.py).
+# individual change to Firestore synchronously (see firestore_sync.py).
 from firestore_sync import hydrate_from_firestore
+from csrf import csrf_protect, new_token
 
 Base.metadata.create_all(bind=engine)
+
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
 app = FastAPI(title="National Public School - Events Manager")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-app.include_router(auth.router)
-app.include_router(dashboard.router)
-app.include_router(events.router)
-app.include_router(students.router)
-app.include_router(houses.router)
-app.include_router(certificates.router)
-app.include_router(settings.router)
-app.include_router(admins.router)
-app.include_router(audit_log.router)
-app.include_router(account.router)
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    if COOKIE_SECURE:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Issue a CSRF token cookie (JS-readable) if the visitor doesn't have one yet.
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie("csrf_token", new_token(), max_age=60 * 60 * 24 * 30,
+                            samesite="lax", secure=COOKIE_SECURE)
+    return response
+
+
+_csrf = [Depends(csrf_protect)]
+app.include_router(auth.router, dependencies=_csrf)
+app.include_router(dashboard.router, dependencies=_csrf)
+app.include_router(events.router, dependencies=_csrf)
+app.include_router(students.router, dependencies=_csrf)
+app.include_router(houses.router, dependencies=_csrf)
+app.include_router(certificates.router, dependencies=_csrf)
+app.include_router(settings.router, dependencies=_csrf)
+app.include_router(admins.router, dependencies=_csrf)
+app.include_router(audit_log.router, dependencies=_csrf)
+app.include_router(account.router, dependencies=_csrf)
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code in (404, 403):
+        return templates.TemplateResponse(request, "error.html", {
+            "code": exc.status_code,
+            "title": "Page not found" if exc.status_code == 404 else "Not allowed",
+            "msg": (exc.detail if exc.status_code == 403 else "That page doesn't exist."),
+        }, status_code=exc.status_code)
+    return HTMLResponse(str(exc.detail), status_code=exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return templates.TemplateResponse(request, "error.html", {
+        "code": 500, "title": "Something went wrong",
+        "msg": "An unexpected error occurred. Please try again.",
+    }, status_code=500)
 
 @app.on_event("startup")
 async def startup_event():
+    # Config sanity checks — warn loudly instead of failing silently.
+    if not os.getenv("SECRET_KEY"):
+        print("[config] WARNING: SECRET_KEY not set — using an insecure fallback. Set it in production.")
+    if not (os.getenv("FIREBASE_KEY_JSON") or os.path.exists(
+            os.getenv("FIREBASE_KEY", "key-period-473405-g2-firebase-adminsdk-fbsvc-2d943f120e.json"))):
+        print("[config] WARNING: No Firebase credentials found — set FIREBASE_KEY_JSON (or FIREBASE_KEY).")
+    if not COOKIE_SECURE:
+        print("[config] NOTE: COOKIE_SECURE is off — set COOKIE_SECURE=true in production (HTTPS).")
+
     # Firestore is the source of truth. On every reboot we only PULL from it into
     # the local mirror — we never push local data up, so a restart can't overwrite
     # Firestore. Firestore only changes when an admin edits something in the app.

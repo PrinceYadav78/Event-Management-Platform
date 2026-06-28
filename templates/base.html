@@ -77,11 +77,19 @@
         <div class="cine-vignette"></div>
     </div>
 
+    <!-- Global navigation/submit progress bar -->
+    <div id="loadbar" aria-hidden="true"
+        class="fixed top-0 left-0 right-0 h-[3px] z-[60] bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 origin-left scale-x-0 opacity-0 pointer-events-none"></div>
+
     <div class="relative z-10 flex h-screen overflow-hidden pointer-events-none">
 
+        <!-- Mobile drawer backdrop -->
+        <div id="navBackdrop" onclick="closeNav()" aria-hidden="true"
+            class="fixed inset-0 bg-black/60 z-30 hidden md:hidden pointer-events-auto"></div>
+
         <!-- Sidebar -->
-        <aside
-            class="w-[220px] bg-slate-900/30 backdrop-blur-3xl border-r border-white/10 flex flex-col shrink-0 shadow-[4px_0_24px_-4px_rgba(0,0,0,0.5)] pointer-events-auto">
+        <aside id="sidebar"
+            class="fixed md:static inset-y-0 left-0 z-40 w-[220px] max-w-[80vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out bg-slate-900/95 md:bg-slate-900/30 backdrop-blur-3xl border-r border-white/10 flex flex-col shrink-0 shadow-[4px_0_24px_-4px_rgba(0,0,0,0.5)] pointer-events-auto">
             <div class="px-5 py-6 pb-4 border-b border-white/10 relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent pointer-events-none">
                 </div>
@@ -163,6 +171,13 @@
                     </svg>
                     Audit log
                 </a>
+                <a href="/certificates/bulk" class="sidebar-link {% if active == 'bulk_certs' %}active{% endif %}">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="8" r="6" />
+                        <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+                    </svg>
+                    Bulk certificates
+                </a>
                 {% endif %}
             </nav>
 
@@ -179,21 +194,29 @@
                         <div class="text-blue-400/80 text-[11px]">{{ 'Super admin' if u.role == 'super_admin' else 'Teacher admin' }}</div>
                     </div>
                 </a>
-                <a href="/logout" title="Logout" class="text-slate-400 hover:text-white transition-colors hx-disable shrink-0">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path
-                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
-                    </svg>
-                </a>
+                <form method="POST" action="/logout" hx-boost="false" class="shrink-0">
+                    <button type="submit" title="Logout" class="text-slate-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer p-0 flex items-center">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
+                        </svg>
+                    </button>
+                </form>
             </div>
         </aside>
 
         <!-- Main -->
         <main id="main-content" class="flex-1 flex flex-col overflow-hidden relative pointer-events-auto">
             <header
-                class="bg-slate-900/30 backdrop-blur-3xl border-b border-white/10 px-7 py-4 flex items-center justify-between shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] z-20">
-                <h1 class="text-lg font-semibold text-white m-0 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">{% block
-                    page_title %}Dashboard{% endblock %}</h1>
+                class="bg-slate-900/30 backdrop-blur-3xl border-b border-white/10 px-4 md:px-7 py-4 flex items-center justify-between shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] z-20">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <button id="navToggle" onclick="openNav()" aria-label="Open navigation menu"
+                        class="md:hidden w-11 h-11 -ml-1.5 flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                    </button>
+                    <h1 class="text-lg font-semibold text-white m-0 truncate drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">{% block
+                        page_title %}Dashboard{% endblock %}</h1>
+                </div>
                 <div class="flex items-center gap-3">
                     {% block header_actions %}{% endblock %}
                     <div
@@ -238,6 +261,69 @@
                 requestAnimationFrame(raf);
             })();
         }());
+    </script>
+    <script>
+        // ---- Mobile navigation drawer ----
+        function openNav() {
+            document.getElementById('sidebar').classList.remove('-translate-x-full');
+            document.getElementById('navBackdrop').classList.remove('hidden');
+        }
+        function closeNav() {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('navBackdrop').classList.add('hidden');
+        }
+        // Close the drawer after tapping a nav link (content swaps; sidebar persists).
+        document.querySelectorAll('#sidebar .sidebar-link').forEach(function (a) {
+            a.addEventListener('click', function () { if (window.innerWidth < 768) closeNav(); });
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNav(); });
+
+        // ---- Global progress bar ----
+        var _lb = document.getElementById('loadbar');
+        function lbStart() { _lb.style.transition = 'transform .4s ease'; _lb.style.opacity = '1'; _lb.style.transform = 'scaleX(0.85)'; }
+        function lbDone() { _lb.style.transform = 'scaleX(1)'; setTimeout(function () { _lb.style.opacity = '0'; _lb.style.transform = 'scaleX(0)'; }, 220); }
+        document.body.addEventListener('htmx:beforeRequest', lbStart);
+        document.body.addEventListener('htmx:afterRequest', lbDone);
+
+        // ---- CSRF token + submit feedback (one capture-phase handler for all forms) ----
+        function getCookie(name) {
+            var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return m ? m.pop() : '';
+        }
+        function injectCsrf(f) {
+            if (!f || f.tagName !== 'FORM') return;
+            if ((f.getAttribute('method') || 'get').toLowerCase() === 'get') return;
+            var inp = f.querySelector('input[name="csrf_token"]');
+            if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'csrf_token'; f.appendChild(inp); }
+            inp.value = getCookie('csrf_token');
+        }
+        // Programmatic form.submit() does NOT fire the 'submit' event, so patch it
+        // to inject the token (e.g. delete-event buttons call form.submit() directly).
+        var _nativeSubmit = HTMLFormElement.prototype.submit;
+        HTMLFormElement.prototype.submit = function () {
+            injectCsrf(this);
+            return _nativeSubmit.apply(this, arguments);
+        };
+        document.addEventListener('submit', function (e) {
+            var f = e.target;
+            if (!f || f.tagName !== 'FORM') return;
+            if ((f.getAttribute('method') || 'get').toLowerCase() !== 'get') {
+                var inp = f.querySelector('input[name="csrf_token"]');
+                if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'csrf_token'; f.appendChild(inp); }
+                inp.value = getCookie('csrf_token');
+            }
+            // Download forms don't navigate, so they manage their own button reset.
+            if (f.hasAttribute('data-download')) return;
+            lbStart();
+            var btn = f.querySelector('button[type=submit], input[type=submit]');
+            if (btn && !btn.dataset.spun) {
+                btn.dataset.spun = '1';
+                setTimeout(function () { btn.disabled = true; btn.classList.add('opacity-70', 'cursor-wait'); }, 0);
+            }
+        }, true);
+        document.body.addEventListener('htmx:configRequest', function (e) {
+            e.detail.headers['X-CSRF-Token'] = getCookie('csrf_token');
+        });
     </script>
 </body>
 

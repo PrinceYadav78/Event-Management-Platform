@@ -95,5 +95,16 @@
             })();
         }());
     </script>
+    <script>
+        document.addEventListener('submit', function (e) {
+            var f = e.target;
+            if (f && f.tagName === 'FORM' && (f.getAttribute('method') || 'get').toLowerCase() !== 'get') {
+                var m = document.cookie.match('(^|;)\\s*csrf_token\\s*=\\s*([^;]+)');
+                var inp = f.querySelector('input[name="csrf_token"]');
+                if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'csrf_token'; f.appendChild(inp); }
+                inp.value = m ? m.pop() : '';
+            }
+        }, true);
+    </script>
 </body>
 </html>

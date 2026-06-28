@@ -1,0 +1,25 @@
+# Render Blueprint — single web service (the SQLite mirror requires ONE instance;
+# Firestore is the durable source of truth, so a restart/scale-to-zero is safe).
+services:
+  - type: web
+    name: nps-events
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    healthCheckPath: /healthz
+    envVars:
+      # Keep one process — multiple workers would each hold a divergent mirror.
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      # Paste the Firebase service-account JSON here in the Render dashboard
+      # (do NOT commit it). Marked sync:false so Render prompts for it.
+      - key: FIREBASE_KEY_JSON
+        sync: false

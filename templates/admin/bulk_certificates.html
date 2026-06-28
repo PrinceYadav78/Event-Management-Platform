@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Bulk certificates - NPS{% endblock %}
+{% block page_title %}Bulk certificates{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% if msg %}
+<div id="toast" class="toast fixed top-4 right-4 z-50 toast-error">
+    {% if msg == 'no_winners' %}None of the selected events have recorded winners.{% else %}Something went wrong.{% endif %}
+    <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100">✕</button>
+</div>
+{% endif %}
+
+<div class="flex flex-col gap-5 max-w-4xl">
+    <div class="card">
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-white/20">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+            </div>
+            <div class="flex-1">
+                <p class="text-slate-300 text-[13px] leading-relaxed">
+                    Select multiple completed events and download <b>one combined file</b> with certificates for
+                    every winner across them. Uses your default certificate template.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" action="/certificates/bulk" hx-boost="false" data-download
+        onsubmit="var b=this.querySelector('button[type=submit]'); setTimeout(function(){ b.disabled=true; b.textContent='Generating…'; }, 0); setTimeout(function(){ b.disabled=false; b.textContent='Generate combined file'; }, 6000);">
+        <div class="card">
+            <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <div class="flex items-center gap-2.5">
+                    <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                    <span class="section-title text-sm">Completed events</span>
+                </div>
+                {% if rows %}
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                    <input type="checkbox" id="selectAll" onchange="toggleAll(this)" class="accent-blue-500 w-4 h-4"> Select all with winners
+                </label>
+                {% endif %}
+            </div>
+
+            {% if rows %}
+            <div class="overflow-x-auto rounded-xl border border-white/5">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="table-header w-10"></th>
+                            <th class="table-header">Event</th>
+                            <th class="table-header">Category</th>
+                            <th class="table-header">Date</th>
+                            <th class="table-header text-right">Winners</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="{% if r.winners == 0 %}opacity-50{% endif %}">
+                            <td class="table-cell">
+                                <input type="checkbox" name="event_ids" value="{{ r.event.id }}" class="evt-check accent-blue-500 w-4 h-4" {% if r.winners == 0 %}disabled{% endif %}>
+                            </td>
+                            <td class="table-cell text-white font-medium">{{ r.event.name }}</td>
+                            <td class="table-cell"><span class="badge-gray">{{ r.event.category }}</span></td>
+                            <td class="table-cell text-slate-400 num">{{ r.event.event_date.strftime('%d %b %Y') if r.event.event_date else '—' }}</td>
+                            <td class="table-cell text-right">
+                                {% if r.winners > 0 %}<span class="badge-blue num">{{ r.winners }}</span>{% else %}<span class="text-slate-600 text-xs">none</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex items-center justify-between mt-5 gap-3 flex-wrap">
+                <span class="text-xs text-slate-400"><span id="selCount" class="num">0</span> event(s) selected</span>
+                <button type="submit" class="btn-primary disabled:opacity-60 disabled:cursor-wait flex items-center gap-2">
+                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+                    Generate combined file
+                </button>
+            </div>
+            {% else %}
+            <div class="text-center py-10 px-4 border border-dashed border-white/10 rounded-xl">
+                <p class="text-slate-300 text-sm font-medium">No completed events yet</p>
+                <p class="text-slate-500 text-xs mt-1">Record results for an event first, then come back here.</p>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<script>
+    function refreshCount() {
+        var n = document.querySelectorAll('.evt-check:checked').length;
+        document.getElementById('selCount').textContent = n;
+    }
+    function toggleAll(box) {
+        document.querySelectorAll('.evt-check:not([disabled])').forEach(function (c) { c.checked = box.checked; });
+        refreshCount();
+    }
+    document.querySelectorAll('.evt-check').forEach(function (c) { c.addEventListener('change', refreshCount); });
+    refreshCount();
+    var toast = document.getElementById('toast');
+    if (toast) setTimeout(function () { toast.remove(); }, 4000);
+</script>
+{% endblock %}

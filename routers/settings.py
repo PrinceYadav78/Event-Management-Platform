@@ -3,9 +3,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
-from models.models import SchoolClass, TermSettings, Student, House, Admin
+from models.models import SchoolClass, TermSettings, Student, House, Admin, AppConfig
 from models.models import get_grade_group
 from routers.auth import verify_token
+from appconfig import get_config
 from datetime import datetime
 import csv
 import io
@@ -15,7 +16,7 @@ YEAR_RE = re.compile(r"\d{4}-\d{2}")
 
 router = APIRouter()
 from templating import templates
-from audit import log_action
+from audit import log_action, snapshot_class
 
 from terms import is_term_locked, get_active_term, default_academic_year
 
@@ -37,8 +38,20 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         "classes": classes,
         "terms": terms,
         "active_term": get_active_term(db),
+        "app_config": get_config(db),
         "active": "settings"
     })
+
+@router.post("/settings/permissions")
+async def update_permissions(request: Request, teachers_can_delete: str = Form(None), db: Session = Depends(get_db)):
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    cfg = db.query(AppConfig).first()
+    if cfg:
+        cfg.teachers_can_delete = (teachers_can_delete == "on")
+        db.commit()
+        log_action(db, request, "Updated permissions", f"teachers_can_delete={cfg.teachers_can_delete}")
+    return RedirectResponse(url="/settings?msg=perms_saved", status_code=303)
 
 @router.post("/settings/classes/add")
 async def add_class(
@@ -72,9 +85,11 @@ async def delete_class(
     ).first()
     if school_class:
         _cn = school_class.class_name
+        snap = snapshot_class(school_class)
         db.delete(school_class)
         db.commit()
-        log_action(db, request, "Deleted class", _cn)
+        log_action(db, request, "Deleted class", _cn,
+                   undo_type="class", undo_data=snap)
     return RedirectResponse(url="/settings", status_code=303)
 
 @router.post("/settings/term/create")

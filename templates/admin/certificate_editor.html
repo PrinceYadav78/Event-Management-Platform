@@ -18,7 +18,7 @@
         </div>
         <div id="previewContainer" class="relative w-full bg-slate-950/50 rounded-xl overflow-hidden border border-white/10 shadow-inner">
             {% if tmpl.file_type == 'image' %}
-            <img src="/static/templates_upload/{{ tmpl.filename }}"
+            <img src="/certificates/template/file/{{ tmpl.id }}"
                 class="w-full block" id="bgImage"
                 onload="initPreview()">
             {% else %}

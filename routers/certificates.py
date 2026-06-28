@@ -3,22 +3,57 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
-from models.models import CertificateTemplate, EventParticipant, Event, Student, CustomTemplate
+from models.models import CertificateTemplate, EventParticipant, Event, Student, CustomTemplate, Admin
 from routers.auth import verify_token
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.lib import colors
+from fastapi.responses import Response
 import io
 import os
-import shutil
 import uuid
+import base64
+import tempfile
+import storage_fb
 
 router = APIRouter()
 from templating import templates
 
 UPLOAD_DIR = "static/templates_upload"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def _storage_path(tmpl) -> str:
+    return f"templates/{tmpl.filename}"
+
+
+def _media_type_for(filename: str) -> str:
+    ext = os.path.splitext(filename)[1].lower()
+    return {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }.get(ext, "application/octet-stream")
+
+
+def _template_bytes(tmpl) -> bytes:
+    """Raw bytes from Firebase Storage (new), legacy base64, or local disk."""
+    if getattr(tmpl, "file_data", None):
+        return base64.b64decode(tmpl.file_data)  # legacy rows stored in Firestore
+    try:
+        return storage_fb.download_bytes(_storage_path(tmpl))
+    except Exception:
+        with open(os.path.join(UPLOAD_DIR, tmpl.filename), "rb") as f:
+            return f.read()
+
+
+def _template_to_tempfile(tmpl) -> str:
+    """Write the template to a temp file and return its path (caller deletes it)."""
+    ext = os.path.splitext(tmpl.filename)[1].lower()
+    fd, path = tempfile.mkstemp(suffix=ext)
+    with os.fdopen(fd, "wb") as f:
+        f.write(_template_bytes(tmpl))
+    return path
 
 @router.get("/certificates", response_class=HTMLResponse)
 async def certificates_page(request: Request, db: Session = Depends(get_db)):
@@ -118,11 +153,15 @@ async def upload_custom_template(
     ext = os.path.splitext(template_file.filename)[1].lower()
     if ext not in [".docx", ".jpeg", ".jpg", ".png"]:
         return RedirectResponse(url="/certificates?msg=invalid_file", status_code=303)
+    raw = await template_file.read()
     file_type = "docx" if ext == ".docx" else "image"
     filename = f"{uuid.uuid4()}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(template_file.file, f)
+    # Store the file in Firebase Storage (durable, no size cap).
+    try:
+        storage_fb.upload_bytes(f"templates/{filename}", raw, _media_type_for(filename))
+    except Exception as e:
+        print("[storage] template upload failed:", e)
+        return RedirectResponse(url="/certificates?msg=upload_failed", status_code=303)
     if is_default:
         for t in db.query(CustomTemplate).all():
             t.is_default = False
@@ -130,11 +169,24 @@ async def upload_custom_template(
         name=name,
         filename=filename,
         file_type=file_type,
-        is_default=is_default
+        is_default=is_default,
     )
     db.add(custom)
     db.commit()
     return RedirectResponse(url=f"/certificates/template/edit/{custom.id}", status_code=303)
+
+
+@router.get("/certificates/template/file/{template_id}")
+async def template_file(template_id: str, request: Request, db: Session = Depends(get_db)):
+    if not verify_token(request):
+        return RedirectResponse(url="/login", status_code=303)
+    tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
+    if not tmpl:
+        return Response(status_code=404)
+    try:
+        return Response(content=_template_bytes(tmpl), media_type=_media_type_for(tmpl.filename))
+    except Exception:
+        return Response(status_code=404)
 
 @router.post("/certificates/template/delete/{template_id}")
 async def delete_custom_template(
@@ -146,6 +198,8 @@ async def delete_custom_template(
         return RedirectResponse(url="/login", status_code=303)
     tmpl = db.query(CustomTemplate).filter(CustomTemplate.id == template_id).first()
     if tmpl:
+        if not getattr(tmpl, "file_data", None):
+            storage_fb.delete_blob(f"templates/{tmpl.filename}")
         filepath = os.path.join(UPLOAD_DIR, tmpl.filename)
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -169,6 +223,43 @@ async def set_default_custom_template(
     db.commit()
     return RedirectResponse(url="/certificates?msg=default_set", status_code=303)
 
+POSITION_LABELS = {1: "1st", 2: "2nd", 3: "3rd"}
+
+
+def _pos_label(pos):
+    return POSITION_LABELS.get(pos, f"{pos}th")
+
+
+def _winners_for(db, event_id):
+    return db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.position != None  # noqa: E711
+    ).order_by(EventParticipant.position).all()
+
+
+def _dispatch(pairs, db, download_name):
+    """Render a single file for a list of (winner, event) pairs, using whichever
+    default template is configured (custom image/docx, else the built-in PDF)."""
+    custom_template = db.query(CustomTemplate).filter(CustomTemplate.is_default == True).first()
+    if custom_template:
+        tmp_path = None
+        try:
+            tmp_path = _template_to_tempfile(custom_template)
+        except Exception:
+            tmp_path = None
+        if tmp_path:
+            try:
+                if custom_template.file_type == "docx":
+                    return generate_from_docx(tmp_path, pairs, download_name)
+                return generate_from_image(tmp_path, pairs, custom_template, download_name)
+            finally:
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+    return generate_default_pdf(pairs, db, download_name)
+
+
 @router.get("/certificates/generate/{event_id}")
 async def generate_certificates(
     event_id: str,
@@ -178,33 +269,66 @@ async def generate_certificates(
     if not verify_token(request):
         return RedirectResponse(url="/login", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
-    winners = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.position != None
-    ).order_by(EventParticipant.position).all()
+    if not event:
+        return RedirectResponse(url="/certificates", status_code=303)
+    winners = _winners_for(db, event_id)
     if not winners:
         return RedirectResponse(url="/certificates?msg=no_winners", status_code=303)
-    custom_template = db.query(CustomTemplate).filter(
-        CustomTemplate.is_default == True
-    ).first()
-    if custom_template:
-        filepath = os.path.join(UPLOAD_DIR, custom_template.filename)
-        if os.path.exists(filepath):
-            if custom_template.file_type == "docx":
-                return await generate_from_docx(filepath, winners, event)
-            elif custom_template.file_type == "image":
-                return await generate_from_image(filepath, winners, event, custom_template)
-    return await generate_default_pdf(winners, event, db)
+    pairs = [(w, event) for w in winners]
+    return _dispatch(pairs, db, f"certificates_{event.name.replace(' ', '_')}")
 
-async def generate_from_docx(filepath, winners, event):
+def _is_super(request, db):
+    email = verify_token(request)
+    if not email:
+        return None
+    admin = db.query(Admin).filter(Admin.email == email).first()
+    return admin if (admin and admin.role == "super_admin") else None
+
+
+@router.get("/certificates/bulk", response_class=HTMLResponse)
+async def bulk_page(request: Request, db: Session = Depends(get_db)):
+    if not _is_super(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    events = db.query(Event).filter(Event.is_completed == True).order_by(Event.event_date.desc()).all()
+    rows = []
+    for ev in events:
+        cnt = db.query(EventParticipant).filter(
+            EventParticipant.event_id == ev.id,
+            EventParticipant.position != None  # noqa: E711
+        ).count()
+        rows.append({"event": ev, "winners": cnt})
+    return templates.TemplateResponse(request, "admin/bulk_certificates.html", {
+        "active": "bulk_certs",
+        "rows": rows,
+    })
+
+
+@router.post("/certificates/bulk")
+async def bulk_generate(request: Request, db: Session = Depends(get_db)):
+    if not _is_super(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    form = await request.form()
+    ids = form.getlist("event_ids")
+    pairs = []
+    for eid in ids:
+        ev = db.query(Event).filter(Event.id == eid).first()
+        if not ev:
+            continue
+        for w in _winners_for(db, eid):
+            pairs.append((w, ev))
+    if not pairs:
+        return RedirectResponse(url="/certificates/bulk?msg=no_winners", status_code=303)
+    return _dispatch(pairs, db, "certificates_bulk")
+
+
+def generate_from_docx(filepath, pairs, download_name="certificates"):
     from docx import Document
     import copy
-    position_labels = {1: "1st", 2: "2nd", 3: "3rd"}
     buffer = io.BytesIO()
     merged_doc = Document()
-    for i, winner in enumerate(winners):
+    for i, (winner, event) in enumerate(pairs):
         student = winner.student
-        pos_label = position_labels.get(winner.position, f"{winner.position}th")
+        pos_label = _pos_label(winner.position)
         replacements = {
             "{{name}}": student.name,
             "{{event}}": event.name,
@@ -245,16 +369,14 @@ async def generate_from_docx(filepath, winners, event):
                 merged_doc.element.body.append(copy.deepcopy(element))
     merged_doc.save(buffer)
     buffer.seek(0)
-    filename = f"certificates_{event.name.replace(' ', '_')}.docx"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={download_name}.docx"}
     )
 
-async def generate_from_image(filepath, winners, event, tmpl):
+def generate_from_image(filepath, pairs, tmpl, download_name="certificates"):
     from PIL import Image as PILImage
-    position_labels = {1: "1st", 2: "2nd", 3: "3rd"}
     buffer = io.BytesIO()
 
     # Detect image size and use as page size
@@ -267,9 +389,9 @@ async def generate_from_image(filepath, winners, event, tmpl):
 
     c = pdf_canvas.Canvas(buffer, pagesize=(pt_width, pt_height))
 
-    for winner in winners:
+    for winner, event in pairs:
         student = winner.student
-        pos_label = position_labels.get(winner.position, f"{winner.position}th")
+        pos_label = _pos_label(winner.position)
 
         # Draw background image filling entire page
         c.drawImage(filepath, 0, 0, width=pt_width, height=pt_height)
@@ -305,14 +427,13 @@ async def generate_from_image(filepath, winners, event, tmpl):
 
     c.save()
     buffer.seek(0)
-    filename = f"certificates_{event.name.replace(' ', '_')}.pdf"
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={download_name}.pdf"}
     )
 
-async def generate_default_pdf(winners, event, db):
+def generate_default_pdf(pairs, db, download_name="certificates"):
     template = db.query(CertificateTemplate).filter(
         CertificateTemplate.is_default == True
     ).first()
@@ -322,13 +443,12 @@ async def generate_default_pdf(winners, event, db):
             body_text="This is to certify that {name} has achieved {position} place in {event} at National Public School.",
             font_family="Helvetica"
         )
-    position_labels = {1: "1st", 2: "2nd", 3: "3rd"}
     buffer = io.BytesIO()
     page_width, page_height = landscape(A4)
     c = pdf_canvas.Canvas(buffer, pagesize=landscape(A4))
-    for winner in winners:
+    for winner, event in pairs:
         student = winner.student
-        pos_label = position_labels.get(winner.position, f"{winner.position}th")
+        pos_label = _pos_label(winner.position)
         body = template.body_text.replace("{name}", student.name)
         body = body.replace("{event}", event.name)
         body = body.replace("{position}", pos_label)
@@ -397,9 +517,8 @@ async def generate_default_pdf(winners, event, db):
         c.showPage()
     c.save()
     buffer.seek(0)
-    filename = f"certificates_{event.name.replace(' ', '_')}.pdf"
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={download_name}.pdf"}
     )

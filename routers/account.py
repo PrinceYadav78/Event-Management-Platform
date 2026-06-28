@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.models import Admin
-from routers.auth import verify_token, verify_password
+from routers.auth import verify_token, verify_password, _set_auth_cookie
 from templating import templates
 from audit import log_action
 
@@ -52,4 +52,8 @@ async def change_password(
     admin.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     db.commit()
     log_action(db, request, "Changed password", admin.email)
-    return RedirectResponse(url="/account?msg=changed", status_code=303)
+    # Re-issue this user's cookie with the new password fingerprint so they stay
+    # logged in (the change invalidates every OTHER existing session for them).
+    response = RedirectResponse(url="/account?msg=changed", status_code=303)
+    _set_auth_cookie(response, admin)
+    return response

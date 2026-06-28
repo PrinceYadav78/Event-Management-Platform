@@ -59,9 +59,9 @@ class Student(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String(100), nullable=False)
     roll_number = Column(String(20), unique=True, nullable=False)
-    class_name = Column(String(10), nullable=False)
-    grade_group = Column(String(20), nullable=False)
-    house_id = Column(String, ForeignKey("houses.id"), nullable=False)
+    class_name = Column(String(10), nullable=False, index=True)
+    grade_group = Column(String(20), nullable=False, index=True)
+    house_id = Column(String, ForeignKey("houses.id"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
 
     house = relationship("House", back_populates="students")
@@ -73,9 +73,9 @@ class Event(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String(200), nullable=False)
     category = Column(String(50), nullable=False)
-    event_date = Column(Date, nullable=False)
+    event_date = Column(Date, nullable=False, index=True)
     event_type = Column(String(20), default="individual")
-    grade_group = Column(String(20), nullable=False)
+    grade_group = Column(String(20), nullable=False, index=True)
     status = Column(String(20), default="upcoming")
     is_completed = Column(Boolean, default=False)
     description = Column(Text, nullable=True)
@@ -87,8 +87,8 @@ class EventParticipant(Base):
     __tablename__ = "event_participants"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    event_id = Column(String, ForeignKey("events.id"), nullable=False)
-    student_id = Column(String, ForeignKey("students.id"), nullable=False)
+    event_id = Column(String, ForeignKey("events.id"), nullable=False, index=True)
+    student_id = Column(String, ForeignKey("students.id"), nullable=False, index=True)
     position = Column(Integer, nullable=True)
     points_awarded = Column(Integer, default=0)
 
@@ -134,7 +134,20 @@ class AuditLog(Base):
     admin_name = Column(String(200), nullable=True)
     action = Column(String(100), nullable=False)
     detail = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    # For reversible actions (deletions): JSON snapshot of what was removed, so a
+    # super-admin can restore it from the audit log. `undone` marks it as reversed.
+    undo_type = Column(String(50), nullable=True)   # e.g. "student", "event", "class", "house"
+    undo_data = Column(Text, nullable=True)         # JSON snapshot
+    undone = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+class AppConfig(Base):
+    __tablename__ = "app_config"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    # When False, teacher admins cannot delete students or events (super-admin only).
+    teachers_can_delete = Column(Boolean, default=False)
+
+
 class SchoolClass(Base):
     __tablename__ = "school_classes"
 
@@ -162,6 +175,9 @@ class CustomTemplate(Base):
     filename = Column(String(200), nullable=False)
     file_type = Column(String(10), nullable=False, default="image")
     is_default = Column(Boolean, default=False)
+    # Base64 of the uploaded file, so it persists in Firestore (survives restarts
+    # on ephemeral hosting). Decoded to a temp file when generating certificates.
+    file_data = Column(Text, nullable=True)
 
     # Text overlay settings (for image templates)
     name_x = Column(Integer, default=50)

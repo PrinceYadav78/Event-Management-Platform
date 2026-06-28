@@ -22,6 +22,26 @@
     </div>
     {% endif %}
 
+    {% if reset %}
+    <div class="card border border-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.12)]">
+        <div class="flex items-center gap-2.5 mb-3">
+            <span class="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-400/25 flex items-center justify-center text-emerald-300"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <h3 class="section-title">New password for {{ reset.name or reset.email }}</h3>
+        </div>
+        <p class="text-slate-400 text-[12.5px] mb-4">Share this with the teacher — it's shown <b>once</b>. Their old password no longer works.</p>
+        <div class="flex flex-wrap items-center gap-x-8 gap-y-3">
+            <div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Login email</div>
+                <div class="font-mono text-blue-300 text-sm mt-0.5">{{ reset.email }}</div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">New password</div>
+                <div class="font-mono text-emerald-300 text-base tracking-wider mt-0.5">{{ reset.password }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Overview stat -->
     <div class="max-w-xs">
         <div class="stat-card">
@@ -172,15 +192,23 @@
             <table class="w-full border-collapse">
                 <thead>
                     <tr>
+                        <th class="table-header">Teacher</th>
                         <th class="table-header">Login email</th>
                         <th class="table-header">Role</th>
+                        <th class="table-header text-right">Password</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for a in admins %}
                     <tr>
+                        <td class="table-cell text-white font-medium">{{ a.name or '—' }}</td>
                         <td class="table-cell font-mono text-blue-300">{{ a.email }}</td>
                         <td class="table-cell"><span class="badge-gray">{{ a.role }}</span></td>
+                        <td class="table-cell text-right whitespace-nowrap">
+                            <form method="POST" action="/admins/reset-password/{{ a.id }}" hx-boost="false" class="inline" onsubmit="return confirm('Reset password for {{ a.name or a.email }}? Their current password will stop working.')">
+                                <button type="submit" class="py-1 px-2.5 rounded-lg text-[11px] font-medium cursor-pointer border-none bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition-colors">Reset password</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

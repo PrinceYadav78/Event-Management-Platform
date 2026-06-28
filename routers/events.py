@@ -11,7 +11,16 @@ from terms import is_term_locked as is_locked
 
 router = APIRouter()
 from templating import templates
-from audit import log_action
+from audit import log_action, snapshot_event
+from appconfig import teachers_can_delete
+
+
+def _can_delete(request, db):
+    email = verify_token(request)
+    admin = db.query(Admin).filter(Admin.email == email).first() if email else None
+    if not admin:
+        return False
+    return admin.role == "super_admin" or teachers_can_delete(db)
 
 @router.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request, db: Session = Depends(get_db)):
@@ -58,8 +67,6 @@ async def add_event(
 async def event_detail(event_id: str, request: Request, db: Session = Depends(get_db)):
     if not verify_token(request):
         return RedirectResponse(url="/login", status_code=303)
-    if is_locked(db):
-        return RedirectResponse(url="/events?msg=locked", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
     participants = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id
@@ -152,8 +159,12 @@ async def delete_event(
         return RedirectResponse(url="/login", status_code=303)
     if is_locked(db):
         return RedirectResponse(url="/events?msg=locked", status_code=303)
+    if not _can_delete(request, db):
+        return RedirectResponse(url="/events?msg=no_delete", status_code=303)
     event = db.query(Event).filter(Event.id == event_id).first()
     if event:
+        snap = snapshot_event(event)
+        _name = event.name
         for p in event.participants:
             if p.points_awarded > 0:
                 house = db.query(House).filter(House.id == p.student.house_id).first()
@@ -167,6 +178,8 @@ async def delete_event(
                         house.senior_points -= p.points_awarded
         db.delete(event)
         db.commit()
+        log_action(db, request, "Deleted event", _name,
+                   undo_type="event", undo_data=snap)
     return RedirectResponse(url="/events", status_code=303)
 @router.post("/events/edit/{event_id}")
 async def edit_event(
@@ -188,13 +201,30 @@ async def edit_event(
     from datetime import date
     event = db.query(Event).filter(Event.id == event_id).first()
     if event:
+        new_completed = (status == "completed")
+        # If a completed event is being un-completed, reverse its awarded points
+        # and clear results, so house totals stay consistent.
+        if event.is_completed and not new_completed:
+            for p in event.participants:
+                if p.points_awarded and p.points_awarded > 0:
+                    house = db.query(House).filter(House.id == p.student.house_id).first()
+                    if house:
+                        house.total_points -= p.points_awarded
+                        if p.student.grade_group == "Primary":
+                            house.primary_points -= p.points_awarded
+                        elif p.student.grade_group == "Middle":
+                            house.middle_points -= p.points_awarded
+                        elif p.student.grade_group == "Senior":
+                            house.senior_points -= p.points_awarded
+                p.points_awarded = 0
+                p.position = None
         event.name = name
         event.category = category
         event.event_date = date.fromisoformat(event_date)
         event.event_type = event_type
         event.grade_group = grade_group
         event.status = status
-        event.is_completed = (status == "completed")
+        event.is_completed = new_completed
         event.description = description
         db.commit()
     return RedirectResponse(url="/events?msg=edited", status_code=303)

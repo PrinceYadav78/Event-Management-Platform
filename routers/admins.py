@@ -100,6 +100,28 @@ async def admins_template(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/admins/reset-password/{admin_id}", response_class=HTMLResponse)
+async def admins_reset_password(admin_id: str, request: Request, db: Session = Depends(get_db)):
+    """Generate a fresh password for one teacher (e.g. they forgot theirs).
+    Their old login tokens are invalidated automatically (the password fingerprint
+    changes), so they must sign in again with the new password shown here."""
+    if not require_super_admin(request, db):
+        return RedirectResponse(url="/dashboard", status_code=303)
+    admin = db.query(Admin).filter(Admin.id == admin_id, Admin.role == "admin").first()
+    if not admin:
+        return RedirectResponse(url="/admins", status_code=303)
+    new_pw = generate_password()
+    admin.password_hash = hash_password(new_pw)
+    db.commit()
+    log_action(db, request, "Reset teacher password", admin.email)
+    return templates.TemplateResponse(request, "admin/admins.html", {
+        "active": "admins",
+        "admins": _existing_admins(db),
+        "generated": None,
+        "reset": {"name": admin.name, "email": admin.email, "password": new_pw},
+    })
+
+
 @router.post("/admins/generate", response_class=HTMLResponse)
 async def admins_generate(request: Request, db: Session = Depends(get_db)):
     if not require_super_admin(request, db):

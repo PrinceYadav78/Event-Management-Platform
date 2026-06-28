@@ -18,6 +18,7 @@
     {% elif msg == 'term_created' %}New term created and made active.
     {% elif msg == 'term_activated' %}Active term switched.
     {% elif msg == 'term_updated' %}Term updated.
+    {% elif msg == 'perms_saved' %}Permissions updated.
     {% elif msg.startswith('import_done') %}{% set parts = msg.split('_') %}Imported {{ parts[2] }} students, skipped {{ parts[3] }}.
     {% else %}Action completed.{% endif %}
     <button onclick="document.getElementById('toast').remove()" class="ml-2 opacity-50 hover:opacity-100 cursor-pointer border-none bg-transparent">✕</button>
@@ -141,6 +142,23 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- Permissions -->
+    <div class="card md:p-6">
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="icon-badge w-7 h-7"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="section-title">Permissions</span>
+        </div>
+        <p class="text-xs text-slate-400 mb-4">When off, only super-admins can delete students &amp; events — teacher admins can still add and edit.</p>
+        <form method="POST" action="/settings/permissions" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="teachers_can_delete" {% if app_config and app_config.teachers_can_delete %}checked{% endif %}
+                    class="rounded border-gray-300 dark:border-slate-600 bg-slate-900/50 backdrop-blur-md text-blue-600 focus:ring-blue-500">
+                <span class="text-sm text-slate-200">Allow teacher admins to <b>delete</b> students &amp; events</span>
+            </label>
+            <button type="submit" class="btn-primary whitespace-nowrap">Save</button>
+        </form>
     </div>
 
     <!-- Add class -->
