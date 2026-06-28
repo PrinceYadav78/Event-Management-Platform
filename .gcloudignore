@@ -1,0 +1,22 @@
+# What NOT to upload when running `gcloud run deploy --source .`
+# (Keeps the upload small and never sends secrets to the cloud build.)
+.git/
+.gitignore
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+# local SQLite mirror (rebuilt from Firestore at runtime)
+*.db
+*.sqlite3
+# secrets — go to Cloud Run via env var / Secret Manager, never the build
+.env
+*firebase-adminsdk*.json
+# Windows-only build tool, not needed in the linux container
+*.exe
+.vscode/
+.idea/
+# NOTE: Dockerfile, requirements.txt, static/ and templates/ are intentionally
+# NOT ignored — the build needs them.
